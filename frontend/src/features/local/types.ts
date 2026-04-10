@@ -1,5 +1,10 @@
 export type ThreatLevel = 'low' | 'medium' | 'high' | 'critical';
 
+export interface ThreatReasonEntry {
+  label: string;
+  score: number;
+}
+
 export interface ThreatRowView {
   id: string;
   pilotName: string;
@@ -9,19 +14,26 @@ export interface ThreatRowView {
   allianceTicker?: string;
   orgMetadataPartial?: boolean;
   mainShip: string;
+  mainRecentShip: string;
   score: number;
   threatBand: ThreatLevel;
+  confidence: number;
+  reasonBreakdown: ThreatReasonEntry[];
   kills: number;
   losses: number;
   dangerPercent: number;
   soloPercent: number;
   avgGangSize: number;
+  soloGangTendency: string;
   lastKill: string;
   lastLoss: string;
+  lastActivitySummary: string;
+  freshness: string;
   tags: string[];
   notes: string;
   lastSeen: string;
   status: 'ready' | 'provisional' | 'loading';
+  dataCompletenessMarkers: string[];
   warnings?: Array<{
     provider?: string;
     severity?: 'info' | 'warn' | 'error';

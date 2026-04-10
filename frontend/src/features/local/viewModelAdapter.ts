@@ -40,6 +40,8 @@ interface PilotDTOShape {
   freshness?: {
     dataAsOf?: string;
   };
+  confidence?: number;
+  scoreBreakdown?: Array<{ label?: string; score?: number }>;
   threat?: {
     threatScore?: number;
     threatBand?: string;
@@ -52,6 +54,8 @@ interface PilotDTOShape {
     lastLoss?: string;
     mainShip?: string;
     notes?: string;
+    confidence?: number;
+    scoreBreakdown?: Array<{ label?: string; score?: number }>;
   };
 }
 
@@ -72,6 +76,12 @@ export function toThreatRowView(dto: unknown, index: number): ThreatRowView {
   const corpFallback = pilot.identity?.corpId ? `Corp #${pilot.identity.corpId} (partial)` : 'Unknown corp (partial)';
   const allianceFallback = pilot.identity?.allianceId ? `Alliance #${pilot.identity.allianceId} (partial)` : 'None (partial)';
   const orgMetadataPartial = !hasValue(corpName) || (!hasValue(allianceName) && Boolean(pilot.identity?.allianceId));
+  const confidence = Number(pilot.confidence ?? pilot.threat?.confidence ?? (pilot.lastSeen ? 1 : 0.6));
+  const reasonBreakdown = (pilot.scoreBreakdown ?? pilot.threat?.scoreBreakdown ?? pilot.tags?.map((tag) => ({ label: tag, score: 10 })) ?? [])
+    .map((entry) => ({ label: entry.label ?? 'Unknown factor', score: Number(entry.score ?? 0) }));
+  const dataCompletenessMarkers = confidence < 0.7
+    ? ['Unknown due to partial killmail timestamps']
+    : [];
 
   return {
     id: pilot.id ?? String(pilot.characterId ?? pilot.identity?.characterId ?? index),
@@ -82,19 +92,26 @@ export function toThreatRowView(dto: unknown, index: number): ThreatRowView {
     allianceTicker: pilot.identity?.allianceTicker,
     orgMetadataPartial,
     mainShip: pilot.mainShip ?? pilot.ship ?? pilot.shipTypeName ?? pilot.threat?.mainShip ?? 'Unknown ship',
+    mainRecentShip: pilot.mainShip ?? pilot.ship ?? pilot.shipTypeName ?? pilot.threat?.mainShip ?? 'Unknown ship',
     score,
     threatBand: toThreatBand(score, pilot.threatBand ?? pilot.threat?.threatBand),
+    confidence,
+    reasonBreakdown,
     kills: Number(pilot.kills ?? pilot.threat?.recentKills ?? 0),
     losses: Number(pilot.losses ?? pilot.threat?.recentLosses ?? 0),
     dangerPercent: Number(pilot.dangerPercent ?? pilot.threat?.dangerPercent ?? 0),
     soloPercent: Number(pilot.soloPercent ?? pilot.threat?.soloPercent ?? 0),
     avgGangSize: Number(pilot.avgGangSize ?? pilot.threat?.avgGangSize ?? 0),
+    soloGangTendency: Number(pilot.soloPercent ?? pilot.threat?.soloPercent ?? 0) >= 60 ? 'High Solo' : Number(pilot.avgGangSize ?? pilot.threat?.avgGangSize ?? 0) >= 4 ? 'High Gang' : 'Balanced',
     lastKill: pilot.lastKill ?? pilot.threat?.lastKill ?? 'Unknown',
     lastLoss: pilot.lastLoss ?? pilot.threat?.lastLoss ?? 'Unknown',
+    lastActivitySummary: `Last kill: ${pilot.lastKill ?? pilot.threat?.lastKill ?? 'Unknown'} · Last loss: ${pilot.lastLoss ?? pilot.threat?.lastLoss ?? 'Unknown'}`,
+    freshness: pilot.lastSeen ?? pilot.freshness?.dataAsOf ?? 'Unknown',
     tags: pilot.tags ?? [],
     notes: pilot.notes ?? pilot.threat?.notes ?? '',
     lastSeen: pilot.lastSeen ?? pilot.freshness?.dataAsOf ?? 'Unknown',
     status: 'ready',
+    dataCompletenessMarkers,
   };
 }
 
