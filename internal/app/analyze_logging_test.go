@@ -35,12 +35,12 @@ func (p loggingESIProvider) GetCharacters(context.Context, []int64) ([]domain.Ch
 	return p.identities, nil
 }
 
-func (loggingESIProvider) GetCorporations(context.Context, []int64) (map[int64]string, error) {
-	return map[int64]string{}, nil
+func (loggingESIProvider) GetCorporations(context.Context, []int64) (map[int64]domain.OrganizationMetadata, error) {
+	return map[int64]domain.OrganizationMetadata{}, nil
 }
 
-func (loggingESIProvider) GetAlliances(context.Context, []int64) (map[int64]string, error) {
-	return map[int64]string{}, nil
+func (loggingESIProvider) GetAlliances(context.Context, []int64) (map[int64]domain.OrganizationMetadata, error) {
+	return map[int64]domain.OrganizationMetadata{}, nil
 }
 
 type loggingZKillProvider struct {

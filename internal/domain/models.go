@@ -33,10 +33,19 @@ func (p ParseResult) Validate() error {
 }
 
 type CharacterIdentity struct {
-	CharacterID int64  `json:"characterId"`
-	Name        string `json:"name"`
-	CorpID      int64  `json:"corpId"`
-	AllianceID  int64  `json:"allianceId"`
+	CharacterID    int64  `json:"characterId"`
+	Name           string `json:"name"`
+	CorpID         int64  `json:"corpId"`
+	CorpName       string `json:"corpName,omitempty"`
+	CorpTicker     string `json:"corpTicker,omitempty"`
+	AllianceID     int64  `json:"allianceId"`
+	AllianceName   string `json:"allianceName,omitempty"`
+	AllianceTicker string `json:"allianceTicker,omitempty"`
+}
+
+type OrganizationMetadata struct {
+	Name   string `json:"name"`
+	Ticker string `json:"ticker,omitempty"`
 }
 
 func (c CharacterIdentity) Validate() error {

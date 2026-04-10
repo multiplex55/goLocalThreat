@@ -16,10 +16,10 @@ func (NoopProvider) GetCharacters(context.Context, []int64) ([]domain.CharacterI
 	return nil, nil
 }
 
-func (NoopProvider) GetCorporations(context.Context, []int64) (map[int64]string, error) {
-	return map[int64]string{}, nil
+func (NoopProvider) GetCorporations(context.Context, []int64) (map[int64]domain.OrganizationMetadata, error) {
+	return map[int64]domain.OrganizationMetadata{}, nil
 }
 
-func (NoopProvider) GetAlliances(context.Context, []int64) (map[int64]string, error) {
-	return map[int64]string{}, nil
+func (NoopProvider) GetAlliances(context.Context, []int64) (map[int64]domain.OrganizationMetadata, error) {
+	return map[int64]domain.OrganizationMetadata{}, nil
 }

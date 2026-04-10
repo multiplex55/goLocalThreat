@@ -36,7 +36,11 @@ export interface PilotThreatDTO {
     characterId: number;
     name: string;
     corpId: number;
+    corpName?: string;
+    corpTicker?: string;
     allianceId: number;
+    allianceName?: string;
+    allianceTicker?: string;
   };
   threat: {
     threatScore: number;

@@ -17,11 +17,11 @@ func (bootstrapESIProvider) ResolveNames(context.Context, []string) (esi.Resolve
 func (bootstrapESIProvider) GetCharacters(context.Context, []int64) ([]domain.CharacterIdentity, error) {
 	return nil, nil
 }
-func (bootstrapESIProvider) GetCorporations(context.Context, []int64) (map[int64]string, error) {
-	return map[int64]string{}, nil
+func (bootstrapESIProvider) GetCorporations(context.Context, []int64) (map[int64]domain.OrganizationMetadata, error) {
+	return map[int64]domain.OrganizationMetadata{}, nil
 }
-func (bootstrapESIProvider) GetAlliances(context.Context, []int64) (map[int64]string, error) {
-	return map[int64]string{}, nil
+func (bootstrapESIProvider) GetAlliances(context.Context, []int64) (map[int64]domain.OrganizationMetadata, error) {
+	return map[int64]domain.OrganizationMetadata{}, nil
 }
 
 type bootstrapZKillProvider struct{}

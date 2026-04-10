@@ -31,8 +31,8 @@ type Client struct {
 	baseURL        string
 	httpClient     *http.Client
 	characterCache *cache.TTLCache[domain.CharacterIdentity]
-	corpCache      *cache.TTLCache[string]
-	allianceCache  *cache.TTLCache[string]
+	corpCache      *cache.TTLCache[domain.OrganizationMetadata]
+	allianceCache  *cache.TTLCache[domain.OrganizationMetadata]
 	retryMax       int
 	batchMaxSize   int
 }
@@ -42,8 +42,8 @@ func NewClient(baseURL string) *Client {
 		baseURL:        strings.TrimRight(baseURL, "/"),
 		httpClient:     &http.Client{Timeout: defaultTimeout},
 		characterCache: cache.NewTTLCache[domain.CharacterIdentity](),
-		corpCache:      cache.NewTTLCache[string](),
-		allianceCache:  cache.NewTTLCache[string](),
+		corpCache:      cache.NewTTLCache[domain.OrganizationMetadata](),
+		allianceCache:  cache.NewTTLCache[domain.OrganizationMetadata](),
 		retryMax:       defaultRetryMax,
 		batchMaxSize:   defaultBatchMaxSize,
 	}
@@ -127,16 +127,16 @@ func (c *Client) GetCharacters(ctx context.Context, ids []int64) ([]domain.Chara
 	return out, nil
 }
 
-func (c *Client) GetCorporations(ctx context.Context, ids []int64) (map[int64]string, error) {
+func (c *Client) GetCorporations(ctx context.Context, ids []int64) (map[int64]domain.OrganizationMetadata, error) {
 	return c.getEntityNames(ctx, ids, "/corporations/%d/", c.corpCache)
 }
 
-func (c *Client) GetAlliances(ctx context.Context, ids []int64) (map[int64]string, error) {
+func (c *Client) GetAlliances(ctx context.Context, ids []int64) (map[int64]domain.OrganizationMetadata, error) {
 	return c.getEntityNames(ctx, ids, "/alliances/%d/", c.allianceCache)
 }
 
-func (c *Client) getEntityNames(ctx context.Context, ids []int64, pattern string, entityCache *cache.TTLCache[string]) (map[int64]string, error) {
-	result := make(map[int64]string)
+func (c *Client) getEntityNames(ctx context.Context, ids []int64, pattern string, entityCache *cache.TTLCache[domain.OrganizationMetadata]) (map[int64]domain.OrganizationMetadata, error) {
+	result := make(map[int64]domain.OrganizationMetadata)
 	failed := make([]int64, 0)
 	for _, id := range dedupeIDs(ids) {
 		cacheKey := strconv.FormatInt(id, 10)
@@ -166,9 +166,11 @@ func (c *Client) getEntityNames(ctx context.Context, ids []int64, pattern string
 			failed = append(failed, id)
 			continue
 		}
+		ticker, _ := payload["ticker"].(string)
+		metadata := domain.OrganizationMetadata{Name: name, Ticker: ticker}
 		ttl := cache.TTLFromHeaders(headers, stableMetadataTTL)
-		entityCache.Set(cacheKey, name, ttl)
-		result[id] = name
+		entityCache.Set(cacheKey, metadata, ttl)
+		result[id] = metadata
 	}
 	if len(failed) > 0 {
 		return result, domain.PartialBatchError{Operation: "entity metadata", FailedIDs: failed}

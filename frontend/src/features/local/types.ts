@@ -4,7 +4,10 @@ export interface ThreatRowView {
   id: string;
   pilotName: string;
   corp: string;
+  corpTicker?: string;
   alliance: string;
+  allianceTicker?: string;
+  orgMetadataPartial?: boolean;
   ship: string;
   score: number;
   level: ThreatLevel;
