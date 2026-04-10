@@ -52,6 +52,8 @@ func (s SummaryRow) ToThreatBreakdown() domain.ThreatBreakdown {
 		Confidence:    res.Confidence,
 		RecentKills:   s.RecentKills,
 		RecentLosses:  s.RecentLosses,
+		DangerPercent: s.DangerRatio * 100,
+		Notes:         "summary derived",
 	}
 }
 

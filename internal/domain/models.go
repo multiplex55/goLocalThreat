@@ -96,6 +96,13 @@ type ThreatBreakdown struct {
 	Confidence     float64                    `json:"confidence"`
 	RecentKills    int                        `json:"recentKills"`
 	RecentLosses   int                        `json:"recentLosses"`
+	DangerPercent  float64                    `json:"dangerPercent"`
+	SoloPercent    float64                    `json:"soloPercent"`
+	AvgGangSize    float64                    `json:"avgGangSize"`
+	LastKill       time.Time                  `json:"lastKill,omitempty"`
+	LastLoss       time.Time                  `json:"lastLoss,omitempty"`
+	MainShip       string                     `json:"mainShip,omitempty"`
+	Notes          string                     `json:"notes,omitempty"`
 	SecurityStatus float64                    `json:"securityStatus"`
 }
 

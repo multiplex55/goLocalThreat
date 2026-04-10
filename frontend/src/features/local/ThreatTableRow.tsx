@@ -19,7 +19,7 @@ export function buildThreatTableRow(row: ThreatRowView, selected: boolean, compa
     selected,
     compact,
     score: buildScoreBadge(row.score),
-    cells: [row.pilotName, corpDisplay, allianceDisplay, row.ship, row.lastSeen],
+    cells: [row.pilotName, corpDisplay, allianceDisplay, row.mainShip, row.lastSeen],
     tags: row.tags.map((tag) => buildTagPill(tag)),
   };
 }
