@@ -1,2 +1,15 @@
 frontend/node_modules/
 clean_branches.bat
+build/appicon.png
+build/windows/icon.ico
+frontend/dist/.gitkeep
+frontend/package.json.md5
+frontend/wailsjs/go/app/AppService.d.ts
+frontend/wailsjs/go/app/AppService.js
+frontend/wailsjs/go/app/AppService.ts
+frontend/wailsjs/go/models.ts
+frontend/wailsjs/runtime/package.json
+frontend/wailsjs/runtime/runtime.d.ts
+frontend/wailsjs/runtime/runtime.js
+frontend/wailsjs/runtime/runtime.ts
+wails
