@@ -32,20 +32,11 @@ func main() {
 	wiring := bootstrap.DefaultStartupWiring()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	providerConfig, err := bootstrap.LoadProviderConfigFromEnv()
+	service, err := initializeAppService(logger, meta)
 	if err != nil {
-		logger.Error("startup configuration error", "error", err)
+		logger.Error("startup initialization failed", "error", err)
 		os.Exit(1)
 	}
-
-	esiProvider, zkillProvider, _, err := buildProviders(logger, providerConfig)
-	if err != nil {
-		logger.Error("provider startup failed", "error", err)
-		os.Exit(1)
-	}
-
-	service := app.NewAppServiceWithProviders(esiProvider, zkillProvider)
-	service.SetBuildInfo(app.BuildInfo{Version: meta.Version, Commit: meta.Commit, Date: meta.Date})
 
 	err = wails.Run(&options.App{
 		Title:            wiring.AppName,
@@ -62,6 +53,22 @@ func main() {
 	if err != nil {
 		fmt.Printf("wails startup failed (%s %s %s): %v\n", meta.Version, meta.Commit, meta.Date, err)
 	}
+}
+
+func initializeAppService(logger *slog.Logger, meta bootstrap.BuildMetadata) (*app.AppService, error) {
+	providerConfig, err := bootstrap.LoadProviderConfigFromEnv()
+	if err != nil {
+		return nil, fmt.Errorf("startup configuration validation failed: %w", err)
+	}
+
+	esiProvider, zkillProvider, _, err := buildProviders(logger, providerConfig)
+	if err != nil {
+		return nil, fmt.Errorf("provider startup failed: %w", err)
+	}
+
+	service := app.NewAppServiceWithProviders(esiProvider, zkillProvider)
+	service.SetBuildInfo(app.BuildInfo{Version: meta.Version, Commit: meta.Commit, Date: meta.Date})
+	return service, nil
 }
 
 func buildProviders(logger *slog.Logger, cfg bootstrap.ProviderConfig) (esi.Provider, app.ZKillProvider, string, error) {
