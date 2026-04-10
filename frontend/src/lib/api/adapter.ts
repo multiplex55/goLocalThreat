@@ -1,4 +1,4 @@
-import * as AppService from '../../../wailsjs/go/app/AppService';
+import * as AppService from '@app-service';
 import type { SettingsViewModel } from '../../features/settings/types';
 import type { AnalysisSessionView } from '../../types/analysis';
 
