@@ -41,3 +41,29 @@ func TestStatsClientUsesCacheBeforeNetwork(t *testing.T) {
 		t.Fatalf("expected one network call due to cache+memo, got %d", calls)
 	}
 }
+
+func TestStatsClientFetchSummaryBuildsExactPathAndUserAgent(t *testing.T) {
+	const characterID int64 = 90000001
+	const expectedPath = "/api/stats/characterID/90000001/"
+
+	var gotPath string
+	var gotUserAgent string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotUserAgent = r.Header.Get("User-Agent")
+		_, _ = w.Write([]byte(`{"character_id":90000001,"kills":1,"losses":0,"danger":1.0}`))
+	}))
+	defer ts.Close()
+
+	client := NewStatsClient(ts.URL + "/api/")
+	if _, err := client.FetchSummary(context.Background(), characterID); err != nil {
+		t.Fatalf("FetchSummary err: %v", err)
+	}
+
+	if gotPath != expectedPath {
+		t.Fatalf("request path = %q, want %q", gotPath, expectedPath)
+	}
+	if gotUserAgent == "" {
+		t.Fatal("request missing User-Agent header")
+	}
+}
