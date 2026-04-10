@@ -301,6 +301,9 @@ func (a *AppService) enrichPilots(ctx context.Context, identities []domain.Chara
 		if p.Freshness.IsStale {
 			freshness.IsStale = true
 		}
+		if p.Freshness.DataAsOf.IsZero() {
+			continue
+		}
 		if p.Freshness.DataAsOf.Before(freshness.DataAsOf) {
 			freshness.DataAsOf = p.Freshness.DataAsOf
 		}
@@ -365,11 +368,23 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 			if len(kms) == 0 {
 				return
 			}
-			latest := kms[0].OccurredAt.UTC()
-			for _, km := range kms[1:] {
-				if km.OccurredAt.After(latest) {
-					latest = km.OccurredAt.UTC()
+			var latest time.Time
+			for _, km := range kms {
+				if km.OccurredAt.IsZero() {
+					continue
 				}
+				occurredAt := km.OccurredAt.UTC()
+				if latest.IsZero() || occurredAt.After(latest) {
+					latest = occurredAt
+				}
+			}
+			if latest.IsZero() {
+				warnings = append(warnings, domain.ProviderWarning{
+					Provider: "zkill",
+					Code:     "DETAIL_TIME_MISSING",
+					Message:  fmt.Sprintf("pilot %d: detail killmails missing occurredAt", id),
+				})
+				return
 			}
 			pilots[idx].Freshness = domain.FetchFreshness{Source: "zkill_detail", DataAsOf: latest, IsStale: isStale(latest, a.settings.RefreshInterval)}
 		}()

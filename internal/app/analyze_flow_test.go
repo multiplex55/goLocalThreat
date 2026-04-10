@@ -181,3 +181,94 @@ func TestAnalyzeFlowStaleCacheRefreshBehavior(t *testing.T) {
 		t.Fatalf("expected pilot to be re-enriched on refresh")
 	}
 }
+
+func TestAnalyzeFlowDetailZeroOccurredAtKeepsSummaryFreshness(t *testing.T) {
+	lastActivity := time.Now().UTC().Add(-45 * time.Minute).Truncate(time.Second)
+	esiProvider := mockESIProvider{
+		resolved: esi.ResolvedNames{Characters: map[string]int64{"Alice": 101}},
+		idents:   []domain.CharacterIdentity{{CharacterID: 101, Name: "Alice"}},
+	}
+	zkProvider := mockZKillProvider{
+		summaries: map[int64]zkill.SummaryRow{
+			101: {CharacterID: 101, RecentKills: 4, RecentLosses: 2, LastActivity: lastActivity},
+		},
+		details: map[int64][]zkill.Killmail{
+			101: {{KillID: 1}, {KillID: 2}},
+		},
+	}
+	svc := app.NewAppServiceWithProviders(esiProvider, zkProvider)
+	session, err := svc.AnalyzePastedText("Alice")
+	if err != nil {
+		t.Fatalf("AnalyzePastedText err: %v", err)
+	}
+	got := session.Pilots[0].Freshness.DataAsOf
+	if got.IsZero() {
+		t.Fatalf("pilot freshness should remain non-zero")
+	}
+	if !got.Equal(lastActivity) {
+		t.Fatalf("expected summary freshness %s, got %s", lastActivity, got)
+	}
+	foundWarning := false
+	for _, w := range session.Warnings {
+		if w.Provider == "zkill" && w.Code == "DETAIL_TIME_MISSING" {
+			foundWarning = true
+		}
+	}
+	if !foundWarning {
+		t.Fatalf("expected DETAIL_TIME_MISSING warning, got %#v", session.Warnings)
+	}
+}
+
+func TestAnalyzeFlowDetailMixedOccurredAtUsesValidLatest(t *testing.T) {
+	lastActivity := time.Now().UTC().Add(-2 * time.Hour)
+	validLatest := time.Now().UTC().Add(-10 * time.Minute).Truncate(time.Second)
+	esiProvider := mockESIProvider{
+		resolved: esi.ResolvedNames{Characters: map[string]int64{"Alice": 101}},
+		idents:   []domain.CharacterIdentity{{CharacterID: 101, Name: "Alice"}},
+	}
+	zkProvider := mockZKillProvider{
+		summaries: map[int64]zkill.SummaryRow{
+			101: {CharacterID: 101, RecentKills: 2, RecentLosses: 1, LastActivity: lastActivity},
+		},
+		details: map[int64][]zkill.Killmail{
+			101: {
+				{KillID: 1},
+				{KillID: 2, OccurredAt: validLatest},
+				{KillID: 3, OccurredAt: validLatest.Add(-15 * time.Minute)},
+			},
+		},
+	}
+	svc := app.NewAppServiceWithProviders(esiProvider, zkProvider)
+	session, err := svc.AnalyzePastedText("Alice")
+	if err != nil {
+		t.Fatalf("AnalyzePastedText err: %v", err)
+	}
+	got := session.Pilots[0].Freshness.DataAsOf
+	if !got.Equal(validLatest) {
+		t.Fatalf("expected valid detail latest %s, got %s", validLatest, got)
+	}
+}
+
+func TestAnalyzeFlowDetailInvalidTimestampsPreservesSummaryFreshness(t *testing.T) {
+	lastActivity := time.Now().UTC().Add(-90 * time.Minute).Truncate(time.Second)
+	esiProvider := mockESIProvider{
+		resolved: esi.ResolvedNames{Characters: map[string]int64{"Alice": 101}},
+		idents:   []domain.CharacterIdentity{{CharacterID: 101, Name: "Alice"}},
+	}
+	zkProvider := mockZKillProvider{
+		summaries: map[int64]zkill.SummaryRow{
+			101: {CharacterID: 101, RecentKills: 3, RecentLosses: 1, LastActivity: lastActivity},
+		},
+		details: map[int64][]zkill.Killmail{
+			101: {{KillID: 10}, {KillID: 11}},
+		},
+	}
+	svc := app.NewAppServiceWithProviders(esiProvider, zkProvider)
+	session, err := svc.AnalyzePastedText("Alice")
+	if err != nil {
+		t.Fatalf("AnalyzePastedText err: %v", err)
+	}
+	if got := session.Pilots[0].Freshness.DataAsOf; !got.Equal(lastActivity) {
+		t.Fatalf("expected summary freshness %s to persist, got %s", lastActivity, got)
+	}
+}
