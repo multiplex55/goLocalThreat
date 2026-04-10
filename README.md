@@ -94,6 +94,13 @@ Eve Online Local Threat in Go
 - Pre-commit hook: `.githooks/pre-commit` (enable with `git config core.hooksPath .githooks`).
   - Runs the repository policy check before commit.
 
+
+## Frontend package manager policy
+
+- Frontend uses **npm only** as the package manager.
+- `frontend/package-lock.json` is required and must be kept in sync with `frontend/package.json`.
+- `frontend/yarn.lock`, `frontend/pnpm-lock.yaml`, and `frontend/bun.lockb` are forbidden and will fail repository policy checks.
+
 ## Build and run
 
 - **Source of truth:** root `main.go` is the only supported app bootstrap path.
