@@ -71,6 +71,29 @@ Eve Online Local Threat in Go
   - Removes: `dist/` and generated frontend bindings at `frontend/wailsjs/`.
   - Expected output: cleanup log lines.
 
+
+## Generated Wails bindings policy
+
+- `frontend/wailsjs/` is generated output owned by Wails tooling (`wails generate module`).
+- Do not hand-edit files under generated directories (`frontend/wailsjs/**`).
+- If backend service signatures change, regenerate bindings and refresh sentinel metadata before committing.
+
+### Canonical regeneration flow
+
+1. `build.bat frontend-install`
+2. `build.bat wails-generate`
+3. `scripts/update-bindings-sentinel.sh`
+4. `build.bat dev`
+
+### Guardrails
+
+- Repository policy check: `scripts/check-repo-policy.sh`
+  - Fails if forbidden root artifacts (`./npm`, `./wails`) exist.
+  - Fails if `frontend/wailsjs` bindings are missing/stale relative to `internal/app/AppService` exported methods.
+  - Fails if generated binding hashes diverge from `frontend/wailsjs/.bindings-sentinel` (manual edits or stale output).
+- Pre-commit hook: `.githooks/pre-commit` (enable with `git config core.hooksPath .githooks`).
+  - Runs the repository policy check before commit.
+
 ## Build and run
 
 - **Source of truth:** root `main.go` is the only supported app bootstrap path.
