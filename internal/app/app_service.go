@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -125,6 +126,7 @@ func (a *AppService) AnalyzePastedText(text string) (domain.AnalysisSession, err
 	ctx := context.Background()
 	now := time.Now().UTC()
 	start := now
+	analysisID := fmt.Sprintf("analysis-%d", now.UnixNano())
 	stageDurations := map[string]int64{}
 	warnings := make([]domain.ProviderWarning, 0)
 	unresolvedNames := make([]string, 0)
@@ -132,13 +134,14 @@ func (a *AppService) AnalyzePastedText(text string) (domain.AnalysisSession, err
 	parseStart := time.Now()
 	parsed := parser.NewOrchestrator().Parse(text)
 	stageDurations["parse_ms"] = time.Since(parseStart).Milliseconds()
-	a.logger.Info("analyze stage complete", "stage", "parse", "duration_ms", stageDurations["parse_ms"], "candidates", len(parsed.Candidates), "invalid", len(parsed.InvalidLines))
+	a.logger.Info("analyze stage complete", "analysis_id", analysisID, "stage", "parse", "duration_ms", stageDurations["parse_ms"], "candidate_count", len(parsed.Candidates), "invalid_count", len(parsed.InvalidLines))
 
 	parserWarnings := make([]domain.ProviderWarning, 0, len(parsed.Warnings))
 	for _, warning := range parsed.Warnings {
 		parserWarnings = append(parserWarnings, domain.ProviderWarning{Provider: "parser", Code: warning, Message: warning})
 	}
 	warnings = append(warnings, parserWarnings...)
+	a.logProviderMessages(analysisID, parserWarnings)
 
 	invalidLines := make([]domain.InvalidLine, 0, len(parsed.InvalidLines))
 	for _, item := range parsed.InvalidLines {
@@ -149,11 +152,16 @@ func (a *AppService) AnalyzePastedText(text string) (domain.AnalysisSession, err
 	identities, unresolved, identityWarnings := a.resolveIdentities(ctx, parsed.Candidates)
 	stageDurations["resolve_ms"] = time.Since(resolveStart).Milliseconds()
 	warnings = append(warnings, identityWarnings...)
+	a.logProviderMessages(analysisID, identityWarnings)
 	unresolvedNames = append(unresolvedNames, unresolved...)
-	a.logger.Info("analyze stage complete", "stage", "resolve", "duration_ms", stageDurations["resolve_ms"], "resolved", len(identities), "unresolved", len(unresolved))
+	a.logger.Info("analyze stage complete", "analysis_id", analysisID, "stage", "resolve", "duration_ms", stageDurations["resolve_ms"], "resolved_identity_count", len(identities), "unresolved_count", len(unresolved))
+	if len(unresolved) > 0 {
+		a.logger.Debug("analyze unresolved sample", "analysis_id", analysisID, "unresolved_sample", summarizeNames(unresolved, 5), "unresolved_sample_count", minInt(len(unresolved), 5))
+	}
 
-	pilots, enrichWarnings, freshness := a.enrichPilots(ctx, identities, false, 0)
+	pilots, enrichWarnings, freshness := a.enrichPilots(ctx, identities, false, 0, analysisID)
 	warnings = append(warnings, enrichWarnings...)
+	a.logProviderMessages(analysisID, enrichWarnings)
 	for k, v := range freshness.StageDurations {
 		stageDurations[k] = v
 	}
@@ -186,13 +194,14 @@ func (a *AppService) AnalyzePastedText(text string) (domain.AnalysisSession, err
 	}
 	stageDurations["total_ms"] = time.Since(start).Milliseconds()
 	if err := s.Validate(); err != nil {
+		a.logger.Error("analyze failed", "analysis_id", analysisID, "reason", "validation_failed", "error", err)
 		return domain.AnalysisSession{}, err
 	}
 
 	a.mu.Lock()
 	a.sessions[s.SessionID] = s
 	a.mu.Unlock()
-	a.logger.Info("analyze completed", "session_id", s.SessionID, "duration_ms", stageDurations["total_ms"], "warnings", len(warnings), "pilots", len(pilots))
+	a.logger.Info("analyze completed", "analysis_id", analysisID, "session_id", s.SessionID, "duration_ms", stageDurations["total_ms"], "warning_count", len(warnings), "pilot_count", len(pilots))
 	return s, nil
 }
 
@@ -251,7 +260,7 @@ func (a *AppService) resolveIdentities(ctx context.Context, names []string) ([]d
 	return ordered, resolved.Unresolved, warnings
 }
 
-func (a *AppService) enrichPilots(ctx context.Context, identities []domain.CharacterIdentity, explicitRefresh bool, selectedPilotID int64) ([]domain.PilotThreatRecord, []domain.ProviderWarning, enrichResult) {
+func (a *AppService) enrichPilots(ctx context.Context, identities []domain.CharacterIdentity, explicitRefresh bool, selectedPilotID int64, analysisID string) ([]domain.PilotThreatRecord, []domain.ProviderWarning, enrichResult) {
 	warnings := make([]domain.ProviderWarning, 0)
 	stageDurations := map[string]int64{}
 	now := time.Now().UTC()
@@ -278,14 +287,14 @@ func (a *AppService) enrichPilots(ctx context.Context, identities []domain.Chara
 		}
 	}
 	stageDurations["zkill_stats_ms"] = time.Since(statsStart).Milliseconds()
-	a.logger.Info("analyze stage complete", "stage", "zkill_stats", "duration_ms", stageDurations["zkill_stats_ms"], "records", len(summaries), "warnings", len(statWarnings))
+	a.logger.Info("analyze stage complete", "analysis_id", analysisID, "stage", "zkill_stats", "duration_ms", stageDurations["zkill_stats_ms"], "record_count", len(summaries), "warning_count", len(statWarnings))
 
 	detailsStart := time.Now()
 	targetIDs := SelectDetailFetchTargets(pilots, 3, selectedPilotID, explicitRefresh)
 	detailWarnings := a.fetchDetails(ctx, pilots, targetIDs)
 	warnings = append(warnings, detailWarnings...)
 	stageDurations["zkill_detail_ms"] = time.Since(detailsStart).Milliseconds()
-	a.logger.Info("analyze stage complete", "stage", "zkill_detail", "duration_ms", stageDurations["zkill_detail_ms"], "targets", len(targetIDs), "warnings", len(detailWarnings))
+	a.logger.Info("analyze stage complete", "analysis_id", analysisID, "stage", "zkill_detail", "duration_ms", stageDurations["zkill_detail_ms"], "target_count", len(targetIDs), "warning_count", len(detailWarnings))
 
 	freshness := domain.FetchFreshness{Source: "composite", DataAsOf: now, IsStale: false}
 	for _, p := range pilots {
@@ -393,6 +402,38 @@ func summarizeWarnings(warnings []domain.ProviderWarning) []domain.ProviderWarni
 	return out
 }
 
+func (a *AppService) logProviderMessages(analysisID string, warnings []domain.ProviderWarning) {
+	for _, warning := range warnings {
+		level := slog.LevelWarn
+		msg := "provider warning"
+		if warning.Code == "RESOLVE_FAILED" || warning.Code == "SUMMARY_FAILED" || warning.Code == "DETAIL_FAILED" {
+			level = slog.LevelError
+			msg = "provider error (degraded mode)"
+		}
+		a.logger.Log(context.Background(), level, msg, "analysis_id", analysisID, "provider", warning.Provider, "code", warning.Code)
+		if level == slog.LevelWarn {
+			a.logger.Debug("provider warning detail", "analysis_id", analysisID, "provider", warning.Provider, "code", warning.Code, "message", warning.Message)
+		}
+	}
+}
+
+func summarizeNames(names []string, limit int) string {
+	if len(names) == 0 || limit <= 0 {
+		return ""
+	}
+	if len(names) > limit {
+		names = names[:limit]
+	}
+	return strings.Join(names, ",")
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func (a *AppService) RefreshSession(sessionID string) (domain.AnalysisSession, error) {
 	a.mu.Lock()
 	s, ok := a.sessions[sessionID]
@@ -400,7 +441,7 @@ func (a *AppService) RefreshSession(sessionID string) (domain.AnalysisSession, e
 	if !ok {
 		return domain.AnalysisSession{}, fmt.Errorf("session %s not found", sessionID)
 	}
-	pilots, warnings, freshness := a.enrichPilots(context.Background(), s.Source.ParsedCharacters, true, 0)
+	pilots, warnings, freshness := a.enrichPilots(context.Background(), s.Source.ParsedCharacters, true, 0, "")
 	s.Pilots = pilots
 	s.Warnings = append(s.Source.Warnings, warnings...)
 	s.WarningCount = len(s.Warnings)
@@ -433,7 +474,7 @@ func (a *AppService) RefreshPilot(sessionID string, characterID int64) (domain.P
 	if !found {
 		return domain.PilotThreatRecord{}, fmt.Errorf("pilot %d not found in session %s", characterID, sessionID)
 	}
-	pilots, warnings, _ := a.enrichPilots(context.Background(), s.Source.ParsedCharacters, false, characterID)
+	pilots, warnings, _ := a.enrichPilots(context.Background(), s.Source.ParsedCharacters, false, characterID, "")
 	s.Pilots = pilots
 	s.Warnings = append(s.Source.Warnings, warnings...)
 	s.WarningCount = len(s.Warnings)
