@@ -6,6 +6,12 @@ export interface ParseWarningDTO {
   message: string;
 }
 
+export interface FreshnessDTO {
+  source: string;
+  dataAsOf: string;
+  isStale: boolean;
+}
+
 export interface ParseSourceDTO {
   rawText: string;
   normalizedText: string;
@@ -21,18 +27,20 @@ export interface ParseSourceDTO {
 }
 
 export interface PilotThreatDTO {
-  identity?: {
-    characterId?: number;
-    name?: string;
-    corpName?: string;
-    allianceName?: string;
+  identity: {
+    characterId: number;
+    name: string;
+    corpId: number;
+    allianceId: number;
   };
-  threat?: {
-    threatScore?: number;
-    threatBand?: string;
-    threatReasons?: string[];
-    confidence?: number;
+  threat: {
+    threatScore: number;
+    threatBand: string;
+    threatReasons: string[];
+    confidence: number;
   };
+  lastUpdated: string;
+  freshness: FreshnessDTO;
 }
 
 export interface AnalysisSessionDTO {
@@ -41,8 +49,13 @@ export interface AnalysisSessionDTO {
   updatedAt: string;
   source: ParseSourceDTO;
   pilots: PilotThreatDTO[];
+  settings: SettingsDTO;
   warnings: ParseWarningDTO[];
+  freshness: FreshnessDTO;
+  durationMetrics?: Record<string, number>;
+  warningCount?: number;
   unresolvedNames?: string[];
+  providerWarningSummary?: Array<{ provider: string; count: number }>;
 }
 
 export interface BuildInfoDTO {
@@ -90,8 +103,8 @@ export function RefreshSession(sessionID: string): Promise<AnalysisSessionDTO> {
   return Call.ByName('AppService.RefreshSession', sessionID) as Promise<AnalysisSessionDTO>;
 }
 
-export function RefreshPilot(sessionID: string, characterID: number): Promise<unknown> {
-  return Call.ByName('AppService.RefreshPilot', sessionID, characterID);
+export function RefreshPilot(sessionID: string, characterID: number): Promise<PilotThreatDTO> {
+  return Call.ByName('AppService.RefreshPilot', sessionID, characterID) as Promise<PilotThreatDTO>;
 }
 
 export function LoadRecentSessions(limit: number): Promise<AnalysisSessionDTO[]> {

@@ -11,6 +11,7 @@ import {
   RefreshSession,
   SaveSettings,
   type AnalysisSessionDTO,
+  type PilotThreatDTO,
   type SettingsDTO,
 } from '../../wailsjs/go/app/AppService';
 
@@ -39,9 +40,11 @@ type _AnalyzeResultShape = AssertTrue<IsEqual<PromiseValue<ReturnType<typeof Ana
 type _LoadRecentResultShape = AssertTrue<IsEqual<PromiseValue<ReturnType<typeof LoadRecentSessions>>, AnalysisSessionDTO[]>>;
 type _LoadSettingsResultShape = AssertTrue<IsEqual<PromiseValue<ReturnType<typeof LoadSettings>>, SettingsDTO>>;
 type _SaveSettingsResultShape = AssertTrue<IsEqual<PromiseValue<ReturnType<typeof SaveSettings>>, SettingsDTO>>;
+type _RefreshPilotResultShape = AssertTrue<IsEqual<PromiseValue<ReturnType<typeof RefreshPilot>>, PilotThreatDTO>>;
 
 export type BindingContractAssertions =
   _AnalyzeResultShape &
   _LoadRecentResultShape &
   _LoadSettingsResultShape &
-  _SaveSettingsResultShape;
+  _SaveSettingsResultShape &
+  _RefreshPilotResultShape;

@@ -7,8 +7,8 @@ function toPilotView(pilot: AppService.PilotThreatDTO, index: number): PilotThre
   return {
     id,
     name: pilot.identity?.name ?? `Unknown #${index + 1}`,
-    corporation: pilot.identity?.corpName ?? 'Unknown corporation',
-    alliance: pilot.identity?.allianceName ?? 'Unknown alliance',
+    corporation: pilot.identity?.corpId ? `Corp #${pilot.identity.corpId}` : 'Unknown corporation',
+    alliance: pilot.identity?.allianceId ? `Alliance #${pilot.identity.allianceId}` : 'Unknown alliance',
     score: Math.round(pilot.threat?.threatScore ?? 0),
     band: pilot.threat?.threatBand ?? 'unknown',
     reasons: pilot.threat?.threatReasons ?? [],

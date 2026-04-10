@@ -17,6 +17,18 @@ interface PilotDTOShape {
   threatScore?: number;
   tags?: string[];
   lastSeen?: string;
+  identity?: {
+    characterId?: number;
+    name?: string;
+    corpId?: number;
+    allianceId?: number;
+  };
+  freshness?: {
+    dataAsOf?: string;
+  };
+  threat?: {
+    threatScore?: number;
+  };
 }
 
 export function toThreatRowView(dto: unknown, index: number): ThreatRowView {
@@ -26,20 +38,33 @@ export function toThreatRowView(dto: unknown, index: number): ThreatRowView {
 
   return {
     id: pilot.id ?? String(pilot.characterId ?? index),
-    pilotName: pilot.pilotName ?? pilot.name ?? `Unknown #${index + 1}`,
-    corp: pilot.corp ?? pilot.corporationName ?? 'Unknown corp',
-    alliance: pilot.alliance ?? pilot.allianceName ?? 'None',
+    pilotName: pilot.pilotName ?? pilot.name ?? pilot.identity?.name ?? `Unknown #${index + 1}`,
+    corp: pilot.corp ?? pilot.corporationName ?? (pilot.identity?.corpId ? `Corp #${pilot.identity.corpId}` : 'Unknown corp'),
+    alliance: pilot.alliance ?? pilot.allianceName ?? (pilot.identity?.allianceId ? `Alliance #${pilot.identity.allianceId}` : 'None'),
     ship: pilot.ship ?? pilot.shipTypeName ?? 'Unknown ship',
     score,
     level,
     tags: pilot.tags ?? [],
-    lastSeen: pilot.lastSeen ?? 'Unknown',
+    lastSeen: pilot.lastSeen ?? pilot.freshness?.dataAsOf ?? 'Unknown',
     status: 'ready',
   };
 }
 
 export function toLocalScreenViewModel(dto: AppService.AnalysisSessionDTO): LocalScreenViewModel {
-  const rows = dto.pilots.map((p, index) => toThreatRowView(p, index));
+  const rows = dto.pilots.map((p, index) =>
+    toThreatRowView({
+      id: String(p.identity.characterId),
+      characterId: p.identity.characterId,
+      pilotName: p.identity.name,
+      threatScore: p.threat.threatScore,
+      corp: p.identity.corpId ? `Corp #${p.identity.corpId}` : undefined,
+      alliance: p.identity.allianceId ? `Alliance #${p.identity.allianceId}` : undefined,
+      lastSeen: p.freshness.dataAsOf,
+      identity: p.identity,
+      freshness: p.freshness,
+      threat: p.threat,
+    }, index),
+  );
   const selectedRowId = rows[0]?.id ?? null;
 
   return {

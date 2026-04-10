@@ -21,10 +21,14 @@ describe('api adapter', () => {
         parsedAt: '2026-01-01T00:00:00Z',
       },
       pilots: [{
-        identity: { characterId: 777, name: 'Alpha', corpName: 'A Corp', allianceName: 'A Alliance' },
+        identity: { characterId: 777, name: 'Alpha', corpId: 1, allianceId: 2 },
         threat: { threatScore: 65, threatBand: 'high', threatReasons: ['active'], confidence: 0.7 },
+        lastUpdated: '2026-01-01T00:00:00Z',
+        freshness: { source: 'zkill', dataAsOf: '2026-01-01T00:00:00Z', isStale: false },
       }],
+      settings: { ignoredCorps: [], ignoredAlliances: [], pinnedPilots: [], refreshInterval: 30, scoring: { weights: { activity: 1, lethality: 1, soloRisk: 1, recentness: 1, context: 1, uncertainty: 1 }, thresholds: { low: 20, medium: 40, high: 70, critical: 90 } } },
       warnings: [{ provider: 'bootstrap', code: 'PLACEHOLDER', message: 'placeholder' }],
+      freshness: { source: 'composite', dataAsOf: '2026-01-01T00:00:00Z', isStale: false },
       unresolvedNames: ['Beta'],
     });
 
@@ -51,8 +55,8 @@ describe('api adapter', () => {
       pilots: [{
         id: '777',
         name: 'Alpha',
-        corporation: 'A Corp',
-        alliance: 'A Alliance',
+        corporation: 'Corp #1',
+        alliance: 'Alliance #2',
         score: 65,
         band: 'high',
         reasons: ['active'],
@@ -80,7 +84,9 @@ describe('api adapter', () => {
         parsedAt: '2026-01-01T00:00:00Z',
       },
       pilots: [],
+      settings: { ignoredCorps: [], ignoredAlliances: [], pinnedPilots: [], refreshInterval: 30, scoring: { weights: { activity: 1, lethality: 1, soloRisk: 1, recentness: 1, context: 1, uncertainty: 1 }, thresholds: { low: 20, medium: 40, high: 70, critical: 90 } } },
       warnings: [],
+      freshness: { source: 'composite', dataAsOf: '2026-01-01T00:00:00Z', isStale: false },
     });
 
     expect(mapped.diagnostics).toEqual({

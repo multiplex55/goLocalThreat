@@ -8,7 +8,7 @@ import (
 	"golocalthreat/internal/app"
 )
 
-func TestPublicAPIMethodsReturnDomainContracts(t *testing.T) {
+func TestPublicAPIMethodsReturnFrontendDTOContracts(t *testing.T) {
 	svc := app.NewAppService()
 
 	session, err := svc.AnalyzePastedText("Alice\nBob")
