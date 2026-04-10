@@ -8,10 +8,18 @@ export interface ThreatRowView {
   alliance: string;
   allianceTicker?: string;
   orgMetadataPartial?: boolean;
-  ship: string;
+  mainShip: string;
   score: number;
-  level: ThreatLevel;
+  threatBand: ThreatLevel;
+  kills: number;
+  losses: number;
+  dangerPercent: number;
+  soloPercent: number;
+  avgGangSize: number;
+  lastKill: string;
+  lastLoss: string;
   tags: string[];
+  notes: string;
   lastSeen: string;
   status: 'ready' | 'provisional' | 'loading';
   warnings?: Array<{
@@ -52,8 +60,29 @@ export interface LocalScreenViewModel {
   };
 }
 
+export const THREAT_TABLE_COLUMNS = [
+  'pilotName',
+  'corp',
+  'alliance',
+  'score',
+  'threatBand',
+  'kills',
+  'losses',
+  'dangerPercent',
+  'soloPercent',
+  'avgGangSize',
+  'lastKill',
+  'lastLoss',
+  'mainShip',
+  'tags',
+  'notes',
+] as const;
+
+export type ThreatTableColumn = typeof THREAT_TABLE_COLUMNS[number];
+
 export interface ThreatTableOptions {
-  sortBy?: keyof Pick<ThreatRowView, 'pilotName' | 'score' | 'corp' | 'alliance' | 'ship' | 'lastSeen'>;
+  sortBy?: ThreatTableColumn;
   sortDirection?: 'asc' | 'desc';
   filterText?: string;
+  visibleColumns?: Partial<Record<ThreatTableColumn, boolean>>;
 }

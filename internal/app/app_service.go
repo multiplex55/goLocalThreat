@@ -462,7 +462,12 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 				return
 			}
 			var latest time.Time
+			var lastKill time.Time
+			var lastLoss time.Time
 			invalidOccurredAt := 0
+			soloKills := 0
+			totalAttackers := 0
+			shipCounts := map[int64]int{}
 			for _, km := range kms {
 				if km.OccurredAtInvalid {
 					invalidOccurredAt++
@@ -473,6 +478,22 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 				occurredAt := km.OccurredAt.UTC()
 				if latest.IsZero() || occurredAt.After(latest) {
 					latest = occurredAt
+				}
+				if km.VictimID == id {
+					if lastLoss.IsZero() || occurredAt.After(lastLoss) {
+						lastLoss = occurredAt
+					}
+				} else {
+					if lastKill.IsZero() || occurredAt.After(lastKill) {
+						lastKill = occurredAt
+					}
+					if km.Attackers == 1 {
+						soloKills++
+					}
+					totalAttackers += max(1, km.Attackers)
+				}
+				if km.ShipTypeID > 0 {
+					shipCounts[km.ShipTypeID]++
 				}
 			}
 			if invalidOccurredAt > 0 {
@@ -488,6 +509,28 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 					Category:      categoryForWarningCode("DETAIL_TIME_INVALID"),
 				})
 			}
+			if !lastKill.IsZero() {
+				pilots[idx].Threat.LastKill = lastKill
+			}
+			if !lastLoss.IsZero() {
+				pilots[idx].Threat.LastLoss = lastLoss
+			}
+			if pilots[idx].Threat.RecentKills > 0 {
+				pilots[idx].Threat.SoloPercent = (float64(soloKills) / float64(pilots[idx].Threat.RecentKills)) * 100
+				pilots[idx].Threat.AvgGangSize = float64(totalAttackers) / float64(pilots[idx].Threat.RecentKills)
+			}
+			bestShipID := int64(0)
+			bestCount := 0
+			for shipID, count := range shipCounts {
+				if count > bestCount {
+					bestCount = count
+					bestShipID = shipID
+				}
+			}
+			if bestShipID > 0 {
+				pilots[idx].Threat.MainShip = fmt.Sprintf("ShipType #%d", bestShipID)
+			}
+			pilots[idx].Threat.Notes = fmt.Sprintf("detail killmails: %d", len(kms))
 			if latest.IsZero() {
 				ident := pilots[idx].Identity
 				warnings = append(warnings, domain.ProviderWarning{

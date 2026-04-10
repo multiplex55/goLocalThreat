@@ -24,9 +24,9 @@ export function buildDetailPanel(row: ThreatRowView | null): DetailPanelView {
       { label: 'Corporation', value: corpDisplay },
       { label: 'Alliance', value: allianceDisplay },
       { label: 'Org Metadata', value: metadataState },
-      { label: 'Ship', value: row.ship },
+      { label: 'Main Ship', value: row.mainShip },
       { label: 'Last Seen', value: row.lastSeen },
-      { label: 'Threat Score', value: `${row.score}` },
+      { label: 'Threat Score', value: `${row.score} (${row.threatBand})` },
     ],
     warnings: (row.warnings ?? []).map((warning) => ({
       text: warning.message,

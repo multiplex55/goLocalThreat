@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"time"
 
 	"golocalthreat/internal/domain"
@@ -40,6 +41,21 @@ type ParseSourceDTO struct {
 type PilotThreatRecordDTO struct {
 	Identity    domain.CharacterIdentity `json:"identity"`
 	Threat      domain.ThreatBreakdown   `json:"threat"`
+	Pilot       string                   `json:"pilot"`
+	Corp        string                   `json:"corp"`
+	Alliance    string                   `json:"alliance"`
+	ThreatScore float64                  `json:"threatScore"`
+	ThreatBand  string                   `json:"threatBand"`
+	Kills       int                      `json:"kills"`
+	Losses      int                      `json:"losses"`
+	DangerPct   float64                  `json:"dangerPercent"`
+	SoloPct     float64                  `json:"soloPercent"`
+	AvgGangSize float64                  `json:"avgGangSize"`
+	LastKill    string                   `json:"lastKill"`
+	LastLoss    string                   `json:"lastLoss"`
+	MainShip    string                   `json:"mainShip"`
+	Notes       string                   `json:"notes"`
+	Tags        []string                 `json:"tags"`
 	LastUpdated string                   `json:"lastUpdated"`
 	Freshness   FetchFreshnessDTO        `json:"freshness"`
 }
@@ -88,9 +104,32 @@ func toParseSourceDTO(in domain.ParseResult) ParseSourceDTO {
 }
 
 func toPilotDTO(in domain.PilotThreatRecord) PilotThreatRecordDTO {
+	corp := in.Identity.CorpName
+	if corp == "" && in.Identity.CorpID > 0 {
+		corp = "Corp #" + fmt.Sprint(in.Identity.CorpID)
+	}
+	alliance := in.Identity.AllianceName
+	if alliance == "" && in.Identity.AllianceID > 0 {
+		alliance = "Alliance #" + fmt.Sprint(in.Identity.AllianceID)
+	}
 	return PilotThreatRecordDTO{
 		Identity:    in.Identity,
 		Threat:      in.Threat,
+		Pilot:       in.Identity.Name,
+		Corp:        corp,
+		Alliance:    alliance,
+		ThreatScore: in.Threat.ThreatScore,
+		ThreatBand:  in.Threat.ThreatBand,
+		Kills:       in.Threat.RecentKills,
+		Losses:      in.Threat.RecentLosses,
+		DangerPct:   in.Threat.DangerPercent,
+		SoloPct:     in.Threat.SoloPercent,
+		AvgGangSize: in.Threat.AvgGangSize,
+		LastKill:    toRFC3339(in.Threat.LastKill),
+		LastLoss:    toRFC3339(in.Threat.LastLoss),
+		MainShip:    in.Threat.MainShip,
+		Notes:       in.Threat.Notes,
+		Tags:        append([]string(nil), in.Threat.ThreatReasons...),
 		LastUpdated: toRFC3339(in.LastUpdated),
 		Freshness:   toFreshnessDTO(in.Freshness),
 	}

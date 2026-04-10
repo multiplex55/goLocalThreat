@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'r
 import { buildDetailPanel } from './DetailPanel';
 import { buildThreatTable } from './ThreatTable';
 import type { AnalyzeState } from './analyzeState';
-import type { LocalScreenViewModel, ThreatRowView } from './types';
+import type { ThreatRowView, ThreatTableColumn } from './types';
 
 export interface LocalScreenProps {
   pastedText: string;
@@ -23,10 +23,18 @@ function toThreatRows(analyzeState: AnalyzeState): ThreatRowView[] {
     pilotName: pilot.name,
     corp: pilot.corporation,
     alliance: pilot.alliance,
-    ship: 'Unknown ship',
+    mainShip: 'Unknown ship',
     score: pilot.score,
-    level: pilot.band === 'critical' || pilot.band === 'high' || pilot.band === 'medium' || pilot.band === 'low' ? pilot.band : 'low',
+    threatBand: pilot.band === 'critical' || pilot.band === 'high' || pilot.band === 'medium' || pilot.band === 'low' ? pilot.band : 'low',
+    kills: 0,
+    losses: 0,
+    dangerPercent: 0,
+    soloPercent: 0,
+    avgGangSize: 0,
+    lastKill: 'Unknown',
+    lastLoss: 'Unknown',
     tags: pilot.reasons,
+    notes: '',
     lastSeen: `confidence ${Math.round(pilot.confidence * 100)}%`,
     status: analyzeState.status === 'loading' ? 'loading' : 'ready',
     warnings: warningsByPilotId[pilot.id]?.map((warning) => ({
@@ -62,18 +70,27 @@ export function LocalScreen({
   const unresolvedNames = diagnostics?.unresolvedNames ?? [];
   const globalWarnings = diagnostics?.globalWarnings ?? [];
 
-  const [selectedRowIndex, setSelectedRowIndex] = useState(-1);
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<ThreatTableColumn>('score');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [filterText, setFilterText] = useState('');
+  const [compactMode, setCompactMode] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<Record<ThreatTableColumn, boolean>>({
+    pilotName: true, corp: true, alliance: true, score: true, threatBand: true, kills: true, losses: true, dangerPercent: true, soloPercent: true,
+    avgGangSize: true, lastKill: true, lastLoss: true, mainShip: true, tags: true, notes: true,
+  });
+
+  const table = useMemo(() => buildThreatTable(rows, selectedRowId, compactMode, { sortBy, sortDirection, filterText, visibleColumns }), [rows, selectedRowId, compactMode, sortBy, sortDirection, filterText, visibleColumns]);
 
   useEffect(() => {
     if (!rows.length) {
-      setSelectedRowIndex(-1);
+      setSelectedRowId(null);
       return;
     }
-    setSelectedRowIndex((prev) => (prev < 0 || prev >= rows.length ? 0 : prev));
+    setSelectedRowId((prev) => (prev && rows.some((row) => row.id === prev) ? prev : rows[0]!.id));
   }, [rows]);
 
-  const selectedRow = selectedRowIndex >= 0 ? rows[selectedRowIndex] : null;
-  const table = useMemo(() => buildThreatTable(rows, selectedRow?.id ?? null, false), [rows, selectedRow?.id]);
+  const selectedRow = useMemo(() => table.rows.find((row) => row.id === selectedRowId)?.row ?? null, [selectedRowId, table.rows]);
   const detail = useMemo(() => buildDetailPanel(selectedRow), [selectedRow]);
 
   const copyName = useCallback(async (pilotName: string | null) => {
@@ -101,14 +118,16 @@ export function LocalScreen({
 
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
       event.preventDefault();
-      setSelectedRowIndex((prev) => nextSelectionIndex(prev, rows.length, event.key));
+      const currentIndex = table.rows.findIndex((row) => row.id === selectedRowId);
+      const nextIndex = nextSelectionIndex(currentIndex, table.rows.length, event.key);
+      setSelectedRowId(nextIndex >= 0 ? table.rows[nextIndex]!.id : null);
       return;
     }
 
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
       void copyName(selectedRow?.pilotName ?? null);
     }
-  }, [copyName, onAnalyze, rows.length, selectedRow?.pilotName]);
+  }, [copyName, onAnalyze, selectedRow?.pilotName, selectedRowId, table.rows]);
 
   if (!useLocalIntelV2Layout) {
     return <div data-testid="local-screen-disabled">Local intel v2 layout is disabled.</div>;
@@ -129,29 +148,40 @@ export function LocalScreen({
           <label htmlFor="paste-input">Pasted roster</label>
           <textarea id="paste-input" data-testid="paste-textbox" value={pastedText} rows={8} onChange={(event) => onPasteChange(event.target.value)} />
           <p data-testid="parse-summary">Parsed {diagnostics?.candidateNamesCount ?? 0} candidates · resolved {diagnostics?.resolvedCount ?? 0}</p>
-          <div data-testid="unresolved-names">
-            <strong>Unresolved names ({unresolvedNames.length})</strong>
-            <ul>
-              {unresolvedNames.map((name) => <li key={name}>{name}</li>)}
-            </ul>
-          </div>
         </aside>
 
         <main data-testid="local-center-panel">
           <h3>Threat table</h3>
-          <ul data-testid="threat-table" aria-label="Threat rows">
-            {table.rows.map((row, index) => (
-              <li key={row.id}>
-                <button
-                  type="button"
-                  aria-current={row.selected ? 'true' : undefined}
-                  onClick={() => setSelectedRowIndex(index)}
-                >
-                  {row.cells[0]?.text ?? rows[index]?.pilotName} · {rows[index]?.score ?? 0} · {rows[index]?.level ?? 'low'}
-                </button>
-              </li>
-            ))}
-          </ul>
+          <input data-testid="threat-filter" value={filterText} onChange={(e) => setFilterText(e.target.value)} placeholder="Filter pilot/corp/alliance/tags" />
+          <button type="button" data-testid="density-toggle" onClick={() => setCompactMode((v) => !v)}>{compactMode ? 'Comfortable' : 'Compact'}</button>
+          <div data-testid="column-toggles">{table.headers.map((h) => (
+            <label key={h.column}><input type="checkbox" checked={visibleColumns[h.column]} onChange={() => setVisibleColumns((curr) => ({ ...curr, [h.column]: !curr[h.column] }))} />{h.column}</label>
+          ))}</div>
+          <table data-testid="threat-table" aria-label="Threat rows">
+            <thead>
+              <tr>
+                {table.headers.filter((h) => h.visible).map((h) => (
+                  <th key={h.column}>
+                    <button type="button" onClick={() => {
+                      if (sortBy === h.column) {
+                        setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+                      } else {
+                        setSortBy(h.column);
+                        setSortDirection(h.column === 'pilotName' || h.column === 'corp' || h.column === 'alliance' ? 'asc' : 'desc');
+                      }
+                    }}>{h.column}{h.direction ? ` (${h.direction})` : ''}</button>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {table.rows.map((tableRow) => (
+                <tr key={tableRow.id} data-selected={tableRow.selected || undefined} onClick={() => setSelectedRowId(tableRow.id)}>
+                  {table.headers.filter((h) => h.visible).map((h) => <td key={h.column}>{Array.isArray(tableRow.row[h.column]) ? (tableRow.row[h.column] as string[]).join(', ') : String(tableRow.row[h.column])}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </main>
 
         <aside data-testid="local-right-panel">
@@ -186,43 +216,10 @@ export function LocalScreen({
               .join(', ') || 'none'}
           </p>
         </details>
-        <span>Status: {analyzeState.status} · pilots: {rows.length}</span>
+        <span>Status: {analyzeState.status} · pilots: {rows.length} · unresolved: {unresolvedNames.length}</span>
       </footer>
     </section>
   );
 }
 
 export { nextSelectionIndex };
-
-
-export function applySettings(
-  view: LocalScreenViewModel,
-  updates: Partial<LocalScreenViewModel['settings']>,
-): LocalScreenViewModel {
-  return {
-    ...view,
-    settings: {
-      ...view.settings,
-      ...updates,
-      visibleColumns: {
-        ...view.settings.visibleColumns,
-        ...(updates.visibleColumns ?? {}),
-      },
-    },
-  };
-}
-
-
-export interface LocalScreenRender {
-  visibleColumns: string[];
-  density: 'comfortable' | 'compact';
-}
-
-export function renderLocalScreen(view: LocalScreenViewModel): LocalScreenRender {
-  return {
-    visibleColumns: Object.entries(view.settings.visibleColumns)
-      .filter(([, enabled]) => enabled)
-      .map(([column]) => column),
-    density: view.settings.density,
-  };
-}
