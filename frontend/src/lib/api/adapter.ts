@@ -1,6 +1,6 @@
 import * as AppService from '../../../wailsjs/go/app/AppService';
 import type { SettingsViewModel } from '../../features/settings/types';
-import type { AnalysisSessionView, PilotThreatView } from '../../types/analysis';
+import type { AnalysisSessionView, ParseWarningView, PilotThreatView } from '../../types/analysis';
 
 function toPilotView(pilot: AppService.PilotThreatDTO, index: number): PilotThreatView {
   const id = String(pilot.identity?.characterId ?? `pilot-${index}`);
@@ -44,6 +44,35 @@ export function toAnalysisSessionView(dto: AppService.AnalysisSessionDTO): Analy
   const unresolvedNames = dto.unresolvedNames ?? [];
   const candidateNamesCount = dto.source.candidateNames.length;
   const resolvedCount = dto.pilots.length;
+  const warnings: ParseWarningView[] = dto.warnings.map((warning) => ({
+    provider: warning.provider,
+    code: warning.code,
+    message: warning.message,
+    characterId: warning.characterId,
+    characterName: warning.characterName,
+    severity: warning.severity ?? 'info',
+    userVisible: warning.userVisible ?? true,
+    category: warning.category,
+  }));
+  const globalWarnings = warnings.filter((warning) => !warning.characterId);
+  const warningsByPilotId: Record<string, ParseWarningView[]> = {};
+  warnings.forEach((warning) => {
+    if (!warning.characterId) return;
+    const key = String(warning.characterId);
+    warningsByPilotId[key] = warningsByPilotId[key] ?? [];
+    warningsByPilotId[key].push(warning);
+  });
+  const severityCounts = warnings.reduce<Record<'info' | 'warn' | 'error', number>>((acc, warning) => {
+    const severity = warning.severity ?? 'info';
+    acc[severity] += 1;
+    return acc;
+  }, { info: 0, warn: 0, error: 0 });
+  const providerCounts = warnings.reduce<Record<string, number>>((acc, warning) => {
+    const provider = warning.provider ?? 'unknown';
+    acc[provider] = (acc[provider] ?? 0) + 1;
+    return acc;
+  }, {});
+
   return {
     sessionId: dto.sessionId,
     createdAt: dto.createdAt,
@@ -55,7 +84,11 @@ export function toAnalysisSessionView(dto: AppService.AnalysisSessionDTO): Analy
       resolvedCount,
       unresolvedNames,
       invalidLines: dto.source.invalidLines.length,
-      warnings: dto.warnings.map((warning) => `${warning.provider}: ${warning.message}`),
+      warnings,
+      globalWarnings,
+      warningsByPilotId,
+      severityCounts,
+      providerCounts,
     },
     parseSummary: {
       candidateCount: candidateNamesCount,

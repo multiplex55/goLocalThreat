@@ -51,6 +51,25 @@ export function toThreatRowView(dto: unknown, index: number): ThreatRowView {
 }
 
 export function toLocalScreenViewModel(dto: AppService.AnalysisSessionDTO): LocalScreenViewModel {
+  const warningsByPilotId = (dto.warnings ?? []).reduce<Record<string, AppService.ParseWarningDTO[]>>((acc, warning) => {
+    if (!warning.characterId) return acc;
+    const key = String(warning.characterId);
+    acc[key] = acc[key] ?? [];
+    acc[key].push(warning);
+    return acc;
+  }, {});
+  const globalWarnings = (dto.warnings ?? []).filter((warning) => !warning.characterId);
+  const severityCounts = globalWarnings.reduce<Record<'info' | 'warn' | 'error', number>>((acc, warning) => {
+    const severity = warning.severity ?? 'info';
+    acc[severity] += 1;
+    return acc;
+  }, { info: 0, warn: 0, error: 0 });
+  const providerCounts = globalWarnings.reduce<Record<string, number>>((acc, warning) => {
+    const provider = warning.provider ?? 'unknown';
+    acc[provider] = (acc[provider] ?? 0) + 1;
+    return acc;
+  }, {});
+
   const rows = dto.pilots.map((p, index) =>
     toThreatRowView({
       id: String(p.identity.characterId),
@@ -63,8 +82,17 @@ export function toLocalScreenViewModel(dto: AppService.AnalysisSessionDTO): Loca
       identity: p.identity,
       freshness: p.freshness,
       threat: p.threat,
+      tags: (warningsByPilotId[String(p.identity.characterId)] ?? []).map((warning) => `${warning.code}: ${warning.message}`),
     }, index),
-  );
+  ).map((row) => ({
+    ...row,
+    warnings: warningsByPilotId[row.id]?.map((warning) => ({
+      provider: warning.provider,
+      severity: warning.severity,
+      userVisible: warning.userVisible,
+      message: warning.message,
+    })) ?? [],
+  }));
   const selectedRowId = rows[0]?.id ?? null;
 
   return {
@@ -94,12 +122,16 @@ export function toLocalScreenViewModel(dto: AppService.AnalysisSessionDTO): Loca
       },
     },
     status: {
-      provider: dto.warnings.length ? 'degraded' : 'online',
+      provider: globalWarnings.length ? 'degraded' : 'online',
       cache: 'warming',
       rate: 'ok',
       updatedAt: dto.updatedAt,
     },
     provisional: false,
     loading: false,
+    diagnosticsSummary: {
+      severityCounts,
+      providerCounts,
+    },
   };
 }

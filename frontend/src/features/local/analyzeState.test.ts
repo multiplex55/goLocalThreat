@@ -20,6 +20,10 @@ describe('analyze state machine', () => {
           unresolvedNames: [],
           invalidLines: 0,
           warnings: [],
+          globalWarnings: [],
+          warningsByPilotId: {},
+          severityCounts: { info: 0, warn: 0, error: 0 },
+          providerCounts: {},
         },
         parseSummary: {
           candidateCount: 1,

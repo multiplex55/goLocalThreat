@@ -43,7 +43,23 @@ describe('api adapter', () => {
         resolvedCount: 1,
         unresolvedNames: ['Beta'],
         invalidLines: 1,
-        warnings: ['bootstrap: placeholder'],
+        warnings: [{
+          provider: 'bootstrap',
+          code: 'PLACEHOLDER',
+          message: 'placeholder',
+          severity: 'info',
+          userVisible: true,
+        }],
+        globalWarnings: [{
+          provider: 'bootstrap',
+          code: 'PLACEHOLDER',
+          message: 'placeholder',
+          severity: 'info',
+          userVisible: true,
+        }],
+        warningsByPilotId: {},
+        severityCounts: { info: 1, warn: 0, error: 0 },
+        providerCounts: { bootstrap: 1 },
       },
       parseSummary: {
         candidateCount: 1,
@@ -95,6 +111,10 @@ describe('api adapter', () => {
       unresolvedNames: [],
       invalidLines: 0,
       warnings: [],
+      globalWarnings: [],
+      warningsByPilotId: {},
+      severityCounts: { info: 0, warn: 0, error: 0 },
+      providerCounts: {},
     });
   });
 });

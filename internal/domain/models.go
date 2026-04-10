@@ -184,9 +184,14 @@ func (s Settings) Validate() error {
 }
 
 type ProviderWarning struct {
-	Provider string `json:"provider"`
-	Code     string `json:"code"`
-	Message  string `json:"message"`
+	Provider      string `json:"provider"`
+	Code          string `json:"code"`
+	Message       string `json:"message"`
+	CharacterID   *int64 `json:"characterId,omitempty"`
+	CharacterName string `json:"characterName,omitempty"`
+	Severity      string `json:"severity,omitempty"`
+	UserVisible   bool   `json:"userVisible"`
+	Category      string `json:"category,omitempty"`
 }
 
 func (p ProviderWarning) Validate() error {

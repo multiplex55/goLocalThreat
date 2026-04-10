@@ -14,6 +14,7 @@ const model: LocalScreenViewModel = {
   status: { provider: 'online', cache: 'hot', rate: 'ok', updatedAt: 'now' },
   provisional: false,
   loading: false,
+  diagnosticsSummary: { severityCounts: { info: 0, warn: 0, error: 0 }, providerCounts: {} },
 };
 
 describe('Settings driven columns', () => {
