@@ -85,9 +85,9 @@ exit /b %ERR%
 
 :build
 if not exist "%DIST_DIR%" mkdir "%DIST_DIR%"
-echo [build.bat] build -> wails build -o goLocalThreat.exe ^& copy artifact to dist
+echo [build.bat] build -> wails build -nopackage -o goLocalThreat.exe ^& copy artifact to dist
 pushd "%ROOT%"
-call wails build -clean -o "goLocalThreat.exe" -ldflags "-X main.version=%VERSION% -X main.commit=%COMMIT_SHA% -X main.date=%BUILD_TIME%"
+call wails build -clean -nopackage -o "goLocalThreat.exe" -ldflags "-X main.version=%VERSION% -X main.commit=%COMMIT_SHA% -X main.date=%BUILD_TIME%"
 if errorlevel 1 (
   set "ERR=%ERRORLEVEL%"
   popd

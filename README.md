@@ -62,7 +62,7 @@ Eve Online Local Threat in Go
   - Runs: `go test ./...` then `npm test` in `frontend/`.
   - Expected output: Go test output followed by Vitest summary.
 - `build.bat build`
-  - Runs: `wails build -clean -o goLocalThreat.exe` with version ldflags, then copies `build/bin/goLocalThreat.exe` to `dist/`.
+  - Runs: `wails build -clean -nopackage -o goLocalThreat.exe` with version ldflags, then copies `build/bin/goLocalThreat.exe` to `dist/`.
   - Expected output: packaged app binary in `dist/`.
 - `build.bat release`
   - Runs: `wails build -clean -nsis -o goLocalThreat.exe` with version ldflags, then copies `build/bin/goLocalThreat.exe` to `dist/` when produced.
