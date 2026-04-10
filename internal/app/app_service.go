@@ -369,7 +369,11 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 				return
 			}
 			var latest time.Time
+			invalidOccurredAt := 0
 			for _, km := range kms {
+				if km.OccurredAtInvalid {
+					invalidOccurredAt++
+				}
 				if km.OccurredAt.IsZero() {
 					continue
 				}
@@ -377,6 +381,13 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 				if latest.IsZero() || occurredAt.After(latest) {
 					latest = occurredAt
 				}
+			}
+			if invalidOccurredAt > 0 {
+				warnings = append(warnings, domain.ProviderWarning{
+					Provider: "zkill",
+					Code:     "DETAIL_TIME_INVALID",
+					Message:  fmt.Sprintf("pilot %d: %d detail killmails had invalid/missing zkb_time", id, invalidOccurredAt),
+				})
 			}
 			if latest.IsZero() {
 				warnings = append(warnings, domain.ProviderWarning{
