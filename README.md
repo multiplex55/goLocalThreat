@@ -101,6 +101,13 @@ Eve Online Local Threat in Go
 - `frontend/package-lock.json` is required and must be kept in sync with `frontend/package.json`.
 - `frontend/yarn.lock`, `frontend/pnpm-lock.yaml`, and `frontend/bun.lockb` are forbidden and will fail repository policy checks.
 
+
+## Validation milestones and phase plan
+
+- Canonical validation order and shell-green milestone criteria are documented in `docs/validation-phases.md`.
+- CI gates mirror the validation order with explicit jobs: `bootstrap`, `generation`, `dev-compile`, `unit-tests`, and `package-build`.
+- Post-shell-green delivery is tracked via Phases A-D with acceptance criteria and rollback-safe increments.
+
 ## Build and run
 
 - **Source of truth:** root `main.go` is the only supported app bootstrap path.
