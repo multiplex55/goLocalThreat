@@ -70,3 +70,43 @@ func TestWailsJSONCriticalShape(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadProviderConfigFromEnvDefaultsToRealWhenUnset(t *testing.T) {
+	t.Setenv("PROVIDER_MODE", "")
+	t.Setenv("GOLT_PROVIDER_MODE", "")
+	t.Setenv("ESI_BASE_URL", "https://esi.evetech.net/latest")
+	t.Setenv("ZKILL_BASE_URL", "https://zkillboard.com")
+
+	cfg, err := LoadProviderConfigFromEnv()
+	if err != nil {
+		t.Fatalf("LoadProviderConfigFromEnv returned error: %v", err)
+	}
+	if cfg.Mode != ProviderModeReal {
+		t.Fatalf("expected default mode real, got %q", cfg.Mode)
+	}
+}
+
+func TestLoadProviderConfigFromEnvAcceptsExplicitNoop(t *testing.T) {
+	t.Setenv("PROVIDER_MODE", "noop")
+	t.Setenv("GOLT_PROVIDER_MODE", "")
+	t.Setenv("ESI_BASE_URL", "")
+	t.Setenv("ZKILL_BASE_URL", "")
+
+	cfg, err := LoadProviderConfigFromEnv()
+	if err != nil {
+		t.Fatalf("LoadProviderConfigFromEnv returned error: %v", err)
+	}
+	if cfg.Mode != ProviderModeNoop {
+		t.Fatalf("expected noop mode, got %q", cfg.Mode)
+	}
+}
+
+func TestLoadProviderConfigFromEnvRejectsInvalidMode(t *testing.T) {
+	t.Setenv("PROVIDER_MODE", "invalid")
+	t.Setenv("GOLT_PROVIDER_MODE", "")
+
+	_, err := LoadProviderConfigFromEnv()
+	if err == nil {
+		t.Fatal("expected invalid provider mode to be rejected")
+	}
+}
