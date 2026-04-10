@@ -25,12 +25,7 @@
       "vitest/globals",
       "vite/client"
     ],
-    "baseUrl": ".",
-    "paths": {
-      "@app-service": [
-        "src/test/mocks/appService.ts"
-      ]
-    }
+    "baseUrl": "."
   },
   "include": [
     "src"

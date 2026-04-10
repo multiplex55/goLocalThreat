@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "test:bindings-contract": "tsc -p tsconfig.contract.json"
   },
   "dependencies": {
     "react": "^18.3.1",

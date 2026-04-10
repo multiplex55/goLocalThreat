@@ -1,4 +1,4 @@
-import type * as AppService from '@app-service';
+import type * as AppService from '../../../wailsjs/go/app/AppService';
 import { renderParseSummary } from './PastePanel';
 import type { LocalScreenViewModel, ThreatRowView } from './types';
 

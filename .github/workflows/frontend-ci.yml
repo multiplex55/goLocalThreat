@@ -4,10 +4,14 @@ on:
   push:
     paths:
       - 'frontend/**'
+      - 'internal/app/app_service.go'
+      - 'scripts/check-bindings-freshness.sh'
       - '.github/workflows/frontend-ci.yml'
   pull_request:
     paths:
       - 'frontend/**'
+      - 'internal/app/app_service.go'
+      - 'scripts/check-bindings-freshness.sh'
       - '.github/workflows/frontend-ci.yml'
 
 jobs:
@@ -35,8 +39,15 @@ jobs:
       - name: TypeScript compile check
         run: npm run typecheck
 
+      - name: Generated bindings contract compile check
+        run: npm run test:bindings-contract
+
       - name: Unit tests
         run: npm run test
 
       - name: Build frontend
         run: npm run build
+
+      - name: Verify generated bindings are fresh
+        working-directory: .
+        run: ./scripts/check-bindings-freshness.sh
