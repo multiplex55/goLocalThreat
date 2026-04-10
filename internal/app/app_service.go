@@ -10,6 +10,8 @@ import (
 	"golocalthreat/internal/domain"
 	"golocalthreat/internal/parser"
 	"golocalthreat/internal/providers/esi"
+	"golocalthreat/internal/scoring"
+	"golocalthreat/internal/store"
 )
 
 type AppService struct {
@@ -28,7 +30,25 @@ func NewAppServiceWithProvider(provider esi.Provider) *AppService {
 		provider = esi.NoopProvider{}
 	}
 	return &AppService{
-		settings: domain.Settings{RefreshInterval: 30},
+		settings: domain.Settings{
+			RefreshInterval: 30,
+			Scoring: domain.ScoringSettings{
+				Weights: domain.ScoringWeights{
+					Activity:    scoring.DefaultSettings.Weights.Activity,
+					Lethality:   scoring.DefaultSettings.Weights.Lethality,
+					SoloRisk:    scoring.DefaultSettings.Weights.SoloRisk,
+					Recentness:  scoring.DefaultSettings.Weights.Recentness,
+					Context:     scoring.DefaultSettings.Weights.Context,
+					Uncertainty: scoring.DefaultSettings.Weights.Uncertainty,
+				},
+				Thresholds: domain.ScoringThresholds{
+					Low:      scoring.DefaultSettings.Thresholds.Low,
+					Medium:   scoring.DefaultSettings.Thresholds.Medium,
+					High:     scoring.DefaultSettings.Thresholds.High,
+					Critical: scoring.DefaultSettings.Thresholds.Critical,
+				},
+			},
+		},
 		sessions: make(map[string]domain.AnalysisSession),
 		esi:      provider,
 	}
@@ -162,7 +182,7 @@ func (a *AppService) LoadSettings() (domain.Settings, error) {
 }
 
 func (a *AppService) SaveSettings(settings domain.Settings) (domain.Settings, error) {
-	if err := settings.Validate(); err != nil {
+	if err := store.ValidateSettings(settings); err != nil {
 		return domain.Settings{}, err
 	}
 	a.mu.Lock()

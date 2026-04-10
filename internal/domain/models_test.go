@@ -18,7 +18,13 @@ func TestAnalysisSessionSerializationRoundTrip(t *testing.T) {
 			RawText:  "pilot one",
 			ParsedAt: now,
 		},
-		Settings: domain.Settings{RefreshInterval: 30},
+		Settings: domain.Settings{
+			RefreshInterval: 30,
+			Scoring: domain.ScoringSettings{
+				Weights:    domain.ScoringWeights{Activity: 1, Lethality: 1, SoloRisk: 1, Recentness: 1, Context: 1, Uncertainty: 1},
+				Thresholds: domain.ScoringThresholds{Low: 10, Medium: 30, High: 60, Critical: 90},
+			},
+		},
 		Freshness: domain.FetchFreshness{
 			Source:   "placeholder",
 			DataAsOf: now,
