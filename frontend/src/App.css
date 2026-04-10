@@ -1,0 +1,17 @@
+.shell-root {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  gap: 0.75rem;
+  text-align: center;
+  padding: 1.5rem;
+}
+
+.shell-root h1 {
+  margin: 0;
+}
+
+.shell-root p {
+  margin: 0;
+  opacity: 0.9;
+}
