@@ -87,7 +87,7 @@ exit /b %ERR%
 if not exist "%DIST_DIR%" mkdir "%DIST_DIR%"
 echo [build.bat] build -> wails build -o dist\goLocalThreat.exe
 pushd "%ROOT%"
-call wails build -clean -o "%DIST_DIR%\goLocalThreat.exe" -ldflags "-X main.version=%VERSION% -X main.commit=%COMMIT_SHA% -X main.date=%BUILD_TIME%"
+call wails build -clean -o "dist\goLocalThreat.exe" -ldflags "-X main.version=%VERSION% -X main.commit=%COMMIT_SHA% -X main.date=%BUILD_TIME%"
 set "ERR=%ERRORLEVEL%"
 popd
 exit /b %ERR%
@@ -96,7 +96,7 @@ exit /b %ERR%
 if not exist "%DIST_DIR%" mkdir "%DIST_DIR%"
 echo [build.bat] release -> wails build -nsis (version metadata embedded)
 pushd "%ROOT%"
-call wails build -clean -nsis -o "%DIST_DIR%\goLocalThreat.exe" -ldflags "-X main.version=%VERSION% -X main.commit=%COMMIT_SHA% -X main.date=%BUILD_TIME%"
+call wails build -clean -nsis -o "dist\goLocalThreat.exe" -ldflags "-X main.version=%VERSION% -X main.commit=%COMMIT_SHA% -X main.date=%BUILD_TIME%"
 set "ERR=%ERRORLEVEL%"
 popd
 exit /b %ERR%
