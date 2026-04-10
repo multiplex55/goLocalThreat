@@ -113,4 +113,83 @@ describe('LocalScreen', () => {
     fireEvent.click(screen.getByText('Beta'));
     expect(screen.getByTestId('detail-semantic-badges')).toHaveTextContent('Stale Data');
   });
+
+  it('double-click row toggles pinned state and pinned badge rendering', () => {
+    render(<LocalScreen pastedText="" analyzeState={buildState()} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
+
+    const betaCell = screen.getByText('Beta');
+    fireEvent.doubleClick(betaCell);
+    expect(screen.getByText('📌 Beta')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('📌 Beta'));
+    expect(screen.getByTestId('detail-semantic-badges')).toHaveTextContent('Pinned');
+
+    fireEvent.doubleClick(screen.getByText('📌 Beta'));
+    expect(screen.queryByText('📌 Beta')).not.toBeInTheDocument();
+  });
+
+  it('copy selected/all actions produce expected payloads with feedback', () => {
+    const onCopySelected = vi.fn();
+    const onCopyAll = vi.fn();
+    render(
+      <LocalScreen
+        pastedText=""
+        analyzeState={buildState()}
+        onPasteChange={() => {}}
+        onAnalyze={() => {}}
+        onCopySelected={onCopySelected}
+        onCopyAll={onCopyAll}
+        useLocalIntelV2Layout
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy Selected' }));
+    expect(onCopySelected).toHaveBeenCalledWith('Alpha');
+    expect(screen.getByTestId('action-feedback')).toHaveTextContent('Copied Alpha.');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy All' }));
+    expect(onCopyAll).toHaveBeenCalledWith(['Alpha', 'Beta']);
+    expect(screen.getByTestId('action-feedback')).toHaveTextContent('Copied 2 pilot names.');
+  });
+
+  it('refresh selected calls backend with selected pilot ID only', () => {
+    const onRefreshSelected = vi.fn();
+    render(
+      <LocalScreen
+        pastedText=""
+        analyzeState={buildState()}
+        onPasteChange={() => {}}
+        onAnalyze={() => {}}
+        onRefreshSelected={onRefreshSelected}
+        useLocalIntelV2Layout
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh Selected' }));
+    expect(onRefreshSelected).toHaveBeenCalledWith('10');
+
+    fireEvent.click(screen.getByText('Beta'));
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh Selected' }));
+    expect(onRefreshSelected).toHaveBeenLastCalledWith('11');
+  });
+
+  it('refresh selected shows no-op messaging when no selection exists', () => {
+    const emptyState = buildState();
+    emptyState.data!.pilots = [];
+    const onRefreshSelected = vi.fn();
+
+    render(
+      <LocalScreen
+        pastedText=""
+        analyzeState={emptyState}
+        onPasteChange={() => {}}
+        onAnalyze={() => {}}
+        onRefreshSelected={onRefreshSelected}
+        useLocalIntelV2Layout
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh Selected' }));
+    expect(onRefreshSelected).toHaveBeenCalledWith(null);
+    expect(screen.getByTestId('action-feedback')).toHaveTextContent('No selected pilot to refresh.');
+  });
 });
