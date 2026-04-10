@@ -1,0 +1,217 @@
+name: milestone-ci
+
+on:
+  push:
+    paths:
+      - '.github/workflows/milestone-ci.yml'
+      - 'build.bat'
+      - 'main.go'
+      - 'internal/**'
+      - 'frontend/**'
+      - 'docs/validation-phases.md'
+      - 'README.md'
+  pull_request:
+    paths:
+      - '.github/workflows/milestone-ci.yml'
+      - 'build.bat'
+      - 'main.go'
+      - 'internal/**'
+      - 'frontend/**'
+      - 'docs/validation-phases.md'
+      - 'README.md'
+
+jobs:
+  bootstrap:
+    name: bootstrap (doctor + toolchain + frontend install)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Wails CLI
+        shell: pwsh
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@latest
+          Add-Content $env:GITHUB_PATH "$(go env GOPATH)\\bin"
+
+      - name: wails doctor
+        run: wails doctor
+
+      - name: go version
+        run: go version
+
+      - name: npm --version
+        run: npm --version
+
+      - name: build.bat frontend-install
+        run: .\build.bat frontend-install
+
+  generation:
+    name: generation (bindings)
+    needs: bootstrap
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Wails CLI
+        shell: pwsh
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@latest
+          Add-Content $env:GITHUB_PATH "$(go env GOPATH)\\bin"
+
+      - name: build.bat frontend-install
+        run: .\build.bat frontend-install
+
+      - name: build.bat wails-generate
+        run: .\build.bat wails-generate
+
+      - name: Ensure generated bindings are committed
+        shell: pwsh
+        run: |
+          git update-index -q --refresh
+          git diff --exit-code -- frontend/wailsjs
+
+  dev-compile:
+    name: dev-compile (shell launch gate)
+    needs: generation
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Wails CLI
+        shell: pwsh
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@latest
+          Add-Content $env:GITHUB_PATH "$(go env GOPATH)\\bin"
+
+      - name: build.bat frontend-install
+        run: .\build.bat frontend-install
+
+      - name: build.bat dev smoke launch
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "build.bat dev" -PassThru
+          Start-Sleep -Seconds 45
+          if ($p.HasExited) {
+            if ($p.ExitCode -ne 0) {
+              throw "build.bat dev exited early with code $($p.ExitCode)"
+            }
+          } else {
+            Stop-Process -Id $p.Id
+          }
+
+  unit-tests:
+    name: unit-tests (build wrapper + phase regressions)
+    needs: dev-compile
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Wails CLI
+        shell: pwsh
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@latest
+          Add-Content $env:GITHUB_PATH "$(go env GOPATH)\\bin"
+
+      - name: build.bat frontend-install
+        run: .\build.bat frontend-install
+
+      - name: build.bat test
+        run: .\build.bat test
+
+      - name: Phase A regression suite (UI interaction)
+        run: npm --prefix frontend run test -- frontend/src/features/local frontend/src/features/history
+
+      - name: Phase B regression suite (provider/service mocks-fakes)
+        run: go test ./internal/providers/... ./internal/app -count=1
+
+      - name: Phase C regression suite (repository/storage + migrations + TTL)
+        run: go test ./internal/store -count=1
+
+      - name: Phase D regression suite (sorting/filtering/indicators)
+        run: npm --prefix frontend run test -- frontend/src/features/local/ThreatTable.test.tsx frontend/src/features/local/StatusBar.test.tsx frontend/src/features/history/__tests__/history_list.test.tsx
+
+  package-build:
+    name: package-build
+    needs: unit-tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Wails CLI
+        shell: pwsh
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@latest
+          Add-Content $env:GITHUB_PATH "$(go env GOPATH)\\bin"
+
+      - name: build.bat frontend-install
+        run: .\build.bat frontend-install
+
+      - name: build.bat build
+        run: .\build.bat build
+
+      - name: Verify package artifact
+        shell: pwsh
+        run: |
+          if (!(Test-Path -Path "dist\\goLocalThreat.exe")) {
+            throw "Expected build artifact dist\\goLocalThreat.exe was not generated"
+          }

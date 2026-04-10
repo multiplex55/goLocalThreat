@@ -62,10 +62,10 @@ Eve Online Local Threat in Go
   - Runs: `go test ./...` then `npm test` in `frontend/`.
   - Expected output: Go test output followed by Vitest summary.
 - `build.bat build`
-  - Runs: `wails build -clean -o dist\goLocalThreat.exe` with version ldflags.
+  - Runs: `wails build -clean -nopackage -o goLocalThreat.exe` with version ldflags, then copies `build/bin/goLocalThreat.exe` to `dist/`.
   - Expected output: packaged app binary in `dist/`.
 - `build.bat release`
-  - Runs: `wails build -clean -nsis -o dist\goLocalThreat.exe` with version ldflags.
+  - Runs: `wails build -clean -nsis -o goLocalThreat.exe` with version ldflags, then copies `build/bin/goLocalThreat.exe` to `dist/` when produced.
   - Expected output: release-grade installer artifacts and binary in `dist/`.
 - `build.bat clean`
   - Removes: `dist/` and generated frontend bindings at `frontend/wailsjs/`.
@@ -100,6 +100,13 @@ Eve Online Local Threat in Go
 - Frontend uses **npm only** as the package manager.
 - `frontend/package-lock.json` is required and must be kept in sync with `frontend/package.json`.
 - `frontend/yarn.lock`, `frontend/pnpm-lock.yaml`, and `frontend/bun.lockb` are forbidden and will fail repository policy checks.
+
+
+## Validation milestones and phase plan
+
+- Canonical validation order and shell-green milestone criteria are documented in `docs/validation-phases.md`.
+- CI gates mirror the validation order with explicit jobs: `bootstrap`, `generation`, `dev-compile`, `unit-tests`, and `package-build`.
+- Post-shell-green delivery is tracked via Phases A-D with acceptance criteria and rollback-safe increments.
 
 ## Build and run
 

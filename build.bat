@@ -85,9 +85,20 @@ exit /b %ERR%
 
 :build
 if not exist "%DIST_DIR%" mkdir "%DIST_DIR%"
-echo [build.bat] build -> wails build -o dist\goLocalThreat.exe
+echo [build.bat] build -> wails build -nopackage -o goLocalThreat.exe ^& copy artifact to dist
 pushd "%ROOT%"
-call wails build -clean -o "%DIST_DIR%\goLocalThreat.exe" -ldflags "-X main.version=%VERSION% -X main.commit=%COMMIT_SHA% -X main.date=%BUILD_TIME%"
+call wails build -clean -nopackage -o "goLocalThreat.exe" -ldflags "-X main.version=%VERSION% -X main.commit=%COMMIT_SHA% -X main.date=%BUILD_TIME%"
+if errorlevel 1 (
+  set "ERR=%ERRORLEVEL%"
+  popd
+  exit /b %ERR%
+)
+if not exist "build\bin\goLocalThreat.exe" (
+  echo [build.bat] expected build\bin\goLocalThreat.exe not found
+  popd
+  exit /b 1
+)
+copy /y "build\bin\goLocalThreat.exe" "%DIST_DIR%\goLocalThreat.exe" >nul
 set "ERR=%ERRORLEVEL%"
 popd
 exit /b %ERR%
@@ -96,8 +107,18 @@ exit /b %ERR%
 if not exist "%DIST_DIR%" mkdir "%DIST_DIR%"
 echo [build.bat] release -> wails build -nsis (version metadata embedded)
 pushd "%ROOT%"
-call wails build -clean -nsis -o "%DIST_DIR%\goLocalThreat.exe" -ldflags "-X main.version=%VERSION% -X main.commit=%COMMIT_SHA% -X main.date=%BUILD_TIME%"
-set "ERR=%ERRORLEVEL%"
+call wails build -clean -nsis -o "goLocalThreat.exe" -ldflags "-X main.version=%VERSION% -X main.commit=%COMMIT_SHA% -X main.date=%BUILD_TIME%"
+if errorlevel 1 (
+  set "ERR=%ERRORLEVEL%"
+  popd
+  exit /b %ERR%
+)
+if exist "build\bin\goLocalThreat.exe" (
+  copy /y "build\bin\goLocalThreat.exe" "%DIST_DIR%\goLocalThreat.exe" >nul
+  set "ERR=%ERRORLEVEL%"
+) else (
+  set "ERR=0"
+)
 popd
 exit /b %ERR%
 
