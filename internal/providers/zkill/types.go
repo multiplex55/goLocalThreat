@@ -56,13 +56,14 @@ func (s SummaryRow) ToThreatBreakdown() domain.ThreatBreakdown {
 }
 
 type Killmail struct {
-	KillID      int64
-	OccurredAt  time.Time
-	VictimID    int64
-	Attackers   int
-	ShipTypeID  int64
-	SystemID    int64
-	DamageTaken int64
+	KillID            int64
+	OccurredAt        time.Time
+	OccurredAtInvalid bool
+	VictimID          int64
+	Attackers         int
+	ShipTypeID        int64
+	SystemID          int64
+	DamageTaken       int64
 }
 
 type ProviderStatus struct {

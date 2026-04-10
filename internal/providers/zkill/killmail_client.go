@@ -73,7 +73,8 @@ func clampLimit(n int) int {
 func (c *KillmailClient) fetchKillmails(ctx context.Context, characterID int64) ([]Killmail, error) {
 	cacheKey := fmt.Sprintf("%d", characterID)
 	if payload, ok := c.cache.get("killmail", cacheKey); ok {
-		return parseKillmails(payload)
+		items, _, _ := parseKillmails(payload)
+		return items, nil
 	}
 	path := fmt.Sprintf("/api/kills/characterID/%d/", characterID)
 	target, err := url.JoinPath(c.baseURL, path)
@@ -103,26 +104,52 @@ func (c *KillmailClient) fetchKillmails(ctx context.Context, characterID int64) 
 		return nil, err
 	}
 	c.cache.set("killmail", cacheKey, body, cache.TTLFromHeaders(resp.Header, killmailTTL))
-	return parseKillmails(body)
+	items, _, _ := parseKillmails(body)
+	return items, nil
 }
 
-func parseKillmails(body []byte) ([]Killmail, error) {
+var zkillTimeFormats = []string{
+	"2006-01-02 15:04:05",       // common zKill timestamp form without timezone
+	"2006-01-02T15:04:05",       // ISO-like timestamp without timezone
+	"2006-01-02 15:04:05 -0700", // timestamp with explicit numeric offset
+}
+
+func parseKillmails(body []byte) ([]Killmail, int, error) {
 	var payload []struct {
 		KillmailID int64  `json:"killmail_id"`
 		Time       string `json:"zkb_time"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	out := make([]Killmail, 0, len(payload))
+	invalidTimeCount := 0
 	for _, p := range payload {
 		km := Killmail{KillID: p.KillmailID}
-		if p.Time != "" {
-			if ts, err := time.Parse(time.RFC3339, p.Time); err == nil {
+		if p.Time == "" {
+			km.OccurredAtInvalid = true
+			invalidTimeCount++
+		} else {
+			if ts, ok := parseZKillTime(p.Time); ok {
 				km.OccurredAt = ts
+			} else {
+				km.OccurredAtInvalid = true
+				invalidTimeCount++
 			}
 		}
 		out = append(out, km)
 	}
-	return out, nil
+	return out, invalidTimeCount, nil
+}
+
+func parseZKillTime(raw string) (time.Time, bool) {
+	if ts, err := time.Parse(time.RFC3339, raw); err == nil {
+		return ts, true
+	}
+	for _, layout := range zkillTimeFormats {
+		if ts, err := time.Parse(layout, raw); err == nil {
+			return ts, true
+		}
+	}
+	return time.Time{}, false
 }
