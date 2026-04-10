@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -313,6 +314,68 @@ func TestAnalyzeFlowDetailInvalidTimestampWarningDoesNotBreakAnalysis(t *testing
 	if !foundInvalidWarning {
 		t.Fatalf("expected DETAIL_TIME_INVALID warning, got %#v", session.Warnings)
 	}
+}
+
+func TestAnalyzeFlowWarningClassificationAndSeverity(t *testing.T) {
+	esiProvider := mockESIProvider{
+		resolved: esi.ResolvedNames{Characters: map[string]int64{"Alice": 101}},
+		idents:   []domain.CharacterIdentity{{CharacterID: 101, Name: "Alice"}},
+	}
+	zkProvider := mockZKillProvider{
+		summaryErr: map[int64]error{101: errors.New("timeout")},
+	}
+	svc := app.NewAppServiceWithProviders(esiProvider, zkProvider)
+	session, err := svc.AnalyzePastedText("Alice")
+	if err != nil {
+		t.Fatalf("AnalyzePastedText err: %v", err)
+	}
+	var summaryWarning *domain.ProviderWarning
+	for _, w := range session.Warnings {
+		if w.Code == "SUMMARY_FAILED" {
+			tmp := w
+			summaryWarning = &tmp
+			break
+		}
+	}
+	if summaryWarning == nil {
+		t.Fatalf("expected SUMMARY_FAILED warning, got %#v", session.Warnings)
+	}
+	if summaryWarning.CharacterID == nil || *summaryWarning.CharacterID != 101 {
+		t.Fatalf("expected pilot-linked warning, got %#v", summaryWarning)
+	}
+	if summaryWarning.Severity != "error" || summaryWarning.Category != "transport" {
+		t.Fatalf("expected severity/category mapping, got %#v", summaryWarning)
+	}
+}
+
+func TestAnalyzeFlowDetailWarningPrefersCharacterNameWhenAvailable(t *testing.T) {
+	esiProvider := mockESIProvider{
+		resolved: esi.ResolvedNames{Characters: map[string]int64{"Alice": 101}},
+		idents:   []domain.CharacterIdentity{{CharacterID: 101, Name: "Alice"}},
+	}
+	zkProvider := mockZKillProvider{
+		summaries: map[int64]zkill.SummaryRow{
+			101: {CharacterID: 101, RecentKills: 1, RecentLosses: 1, LastActivity: time.Now().UTC()},
+		},
+		detailErr: map[int64]error{101: errors.New("upstream timeout")},
+	}
+	svc := app.NewAppServiceWithProviders(esiProvider, zkProvider)
+	session, err := svc.AnalyzePastedText("Alice")
+	if err != nil {
+		t.Fatalf("AnalyzePastedText err: %v", err)
+	}
+	for _, w := range session.Warnings {
+		if w.Code == "DETAIL_FAILED" {
+			if !strings.Contains(w.Message, "Alice") {
+				t.Fatalf("expected character name in warning message, got %q", w.Message)
+			}
+			if strings.Contains(w.Message, "pilot 101") {
+				t.Fatalf("expected no raw id-only text, got %q", w.Message)
+			}
+			return
+		}
+	}
+	t.Fatalf("expected DETAIL_FAILED warning, got %#v", session.Warnings)
 }
 
 func mustParseRFC3339(t *testing.T, value string) time.Time {

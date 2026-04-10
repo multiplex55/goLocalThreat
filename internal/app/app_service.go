@@ -138,7 +138,7 @@ func (a *AppService) AnalyzePastedText(text string) (AnalysisSessionDTO, error) 
 
 	parserWarnings := make([]domain.ProviderWarning, 0, len(parsed.Warnings))
 	for _, warning := range parsed.Warnings {
-		parserWarnings = append(parserWarnings, domain.ProviderWarning{Provider: "parser", Code: warning, Message: warning})
+		parserWarnings = append(parserWarnings, newWarning("parser", warning, warning, warning, nil))
 	}
 	warnings = append(warnings, parserWarnings...)
 	a.logProviderMessages(analysisID, parserWarnings)
@@ -218,14 +218,15 @@ func (a *AppService) resolveIdentities(ctx context.Context, names []string) ([]d
 	warnings := make([]domain.ProviderWarning, 0)
 	if err != nil {
 		if errors.Is(err, domain.ErrRateLimited) {
-			warnings = append(warnings, domain.ProviderWarning{Provider: "esi", Code: "RATE_LIMITED", Message: err.Error()})
+			warnings = append(warnings, newWarning("esi", "RATE_LIMITED", "Identity provider is rate-limiting requests; results may be incomplete.", err.Error(), nil))
 			return nil, nil, warnings
 		}
-		warnings = append(warnings, domain.ProviderWarning{Provider: "esi", Code: "RESOLVE_FAILED", Message: err.Error()})
+		warnings = append(warnings, newWarning("esi", "RESOLVE_FAILED", "Identity lookup failed; showing partial results.", err.Error(), nil))
 		return nil, nil, warnings
 	}
 	for _, unresolved := range resolved.Unresolved {
-		warnings = append(warnings, domain.ProviderWarning{Provider: "esi", Code: "UNRESOLVED_NAME", Message: unresolved})
+		raw := unresolved
+		warnings = append(warnings, newWarning("esi", "UNRESOLVED_NAME", fmt.Sprintf("Could not resolve pilot name '%s'.", unresolved), raw, nil))
 	}
 	ids := make([]int64, 0, len(resolved.Characters))
 	for _, id := range resolved.Characters {
@@ -236,7 +237,7 @@ func (a *AppService) resolveIdentities(ctx context.Context, names []string) ([]d
 	}
 	identities, err := a.esi.GetCharacters(ctx, ids)
 	if err != nil {
-		warnings = append(warnings, domain.ProviderWarning{Provider: "esi", Code: "IDENTITY_PARTIAL", Message: err.Error()})
+		warnings = append(warnings, newWarning("esi", "IDENTITY_PARTIAL", "Some pilot identity details could not be loaded.", err.Error(), nil))
 	}
 	byID := make(map[int64]domain.CharacterIdentity, len(identities))
 	for _, id := range identities {
@@ -328,7 +329,13 @@ func (a *AppService) fetchSummaryRows(ctx context.Context, identities []domain.C
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
-				warnings = append(warnings, domain.ProviderWarning{Provider: "zkill", Code: "SUMMARY_FAILED", Message: fmt.Sprintf("%s (%d): %v", ident.Name, ident.CharacterID, err)})
+				warnings = append(warnings, newWarning(
+					"zkill",
+					"SUMMARY_FAILED",
+					fmt.Sprintf("Could not load summary stats for %s.", ident.Name),
+					fmt.Sprintf("%s (%d): %v", ident.Name, ident.CharacterID, err),
+					&ident,
+				))
 				return
 			}
 			summaries[ident.CharacterID] = row
@@ -362,7 +369,14 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
-				warnings = append(warnings, domain.ProviderWarning{Provider: "zkill", Code: "DETAIL_FAILED", Message: fmt.Sprintf("pilot %d: %v", id, err)})
+				ident := pilots[idx].Identity
+				warnings = append(warnings, newWarning(
+					"zkill",
+					"DETAIL_FAILED",
+					fmt.Sprintf("Could not load detailed killmail timestamps for %s.", ident.Name),
+					fmt.Sprintf("%s (%d): %v", ident.Name, ident.CharacterID, err),
+					&ident,
+				))
 				return
 			}
 			if len(kms) == 0 {
@@ -383,17 +397,29 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 				}
 			}
 			if invalidOccurredAt > 0 {
+				ident := pilots[idx].Identity
 				warnings = append(warnings, domain.ProviderWarning{
-					Provider: "zkill",
-					Code:     "DETAIL_TIME_INVALID",
-					Message:  fmt.Sprintf("pilot %d: %d detail killmails had invalid/missing zkb_time", id, invalidOccurredAt),
+					Provider:      "zkill",
+					Code:          "DETAIL_TIME_INVALID",
+					Message:       fmt.Sprintf("%s had %d detail killmails with invalid/missing zkb_time.", ident.Name, invalidOccurredAt),
+					CharacterID:   int64Ptr(ident.CharacterID),
+					CharacterName: ident.Name,
+					Severity:      severityForWarningCode("DETAIL_TIME_INVALID"),
+					UserVisible:   userVisibleForWarningCode("DETAIL_TIME_INVALID"),
+					Category:      categoryForWarningCode("DETAIL_TIME_INVALID"),
 				})
 			}
 			if latest.IsZero() {
+				ident := pilots[idx].Identity
 				warnings = append(warnings, domain.ProviderWarning{
-					Provider: "zkill",
-					Code:     "DETAIL_TIME_MISSING",
-					Message:  fmt.Sprintf("pilot %d: detail killmails missing occurredAt", id),
+					Provider:      "zkill",
+					Code:          "DETAIL_TIME_MISSING",
+					Message:       fmt.Sprintf("%s detail killmails are missing occurredAt timestamps.", ident.Name),
+					CharacterID:   int64Ptr(ident.CharacterID),
+					CharacterName: ident.Name,
+					Severity:      severityForWarningCode("DETAIL_TIME_MISSING"),
+					UserVisible:   userVisibleForWarningCode("DETAIL_TIME_MISSING"),
+					Category:      categoryForWarningCode("DETAIL_TIME_MISSING"),
 				})
 				return
 			}
@@ -440,6 +466,62 @@ func (a *AppService) logProviderMessages(analysisID string, warnings []domain.Pr
 		if level == slog.LevelWarn {
 			a.logger.Debug("provider warning detail", "analysis_id", analysisID, "provider", warning.Provider, "code", warning.Code, "message", warning.Message)
 		}
+	}
+}
+
+func newWarning(provider string, code string, summary string, rawMessage string, ident *domain.CharacterIdentity) domain.ProviderWarning {
+	warning := domain.ProviderWarning{
+		Provider:    provider,
+		Code:        code,
+		Message:     summary,
+		Severity:    severityForWarningCode(code),
+		UserVisible: userVisibleForWarningCode(code),
+		Category:    categoryForWarningCode(code),
+	}
+	if rawMessage != "" {
+		warning.Message = fmt.Sprintf("%s (raw: %s)", summary, rawMessage)
+	}
+	if ident != nil {
+		warning.CharacterID = int64Ptr(ident.CharacterID)
+		warning.CharacterName = ident.Name
+	}
+	return warning
+}
+
+func int64Ptr(v int64) *int64 {
+	return &v
+}
+
+func severityForWarningCode(code string) string {
+	switch code {
+	case "RESOLVE_FAILED", "SUMMARY_FAILED", "DETAIL_FAILED":
+		return "error"
+	case "RATE_LIMITED", "IDENTITY_PARTIAL", "UNRESOLVED_NAME", "DETAIL_TIME_MISSING":
+		return "warn"
+	default:
+		return "info"
+	}
+}
+
+func categoryForWarningCode(code string) string {
+	switch code {
+	case "RATE_LIMITED":
+		return "rate-limit"
+	case "DETAIL_TIME_INVALID", "DETAIL_TIME_MISSING", "UNRESOLVED_NAME", "IDENTITY_PARTIAL":
+		return "data-quality"
+	case "RESOLVE_FAILED", "SUMMARY_FAILED", "DETAIL_FAILED":
+		return "transport"
+	default:
+		return "general"
+	}
+}
+
+func userVisibleForWarningCode(code string) bool {
+	switch code {
+	case "DETAIL_TIME_INVALID":
+		return false
+	default:
+		return true
 	}
 }
 

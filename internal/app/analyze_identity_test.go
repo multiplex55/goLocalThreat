@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"golocalthreat/internal/app"
@@ -41,7 +42,7 @@ func TestAnalyzePastedText_UnresolvedNamesBecomeWarnings(t *testing.T) {
 	}
 	found := false
 	for _, warning := range session.Warnings {
-		if warning.Provider == "esi" && warning.Code == "UNRESOLVED_NAME" && warning.Message == "Unknown Name" {
+		if warning.Provider == "esi" && warning.Code == "UNRESOLVED_NAME" && strings.Contains(warning.Message, "Unknown Name") {
 			found = true
 			break
 		}

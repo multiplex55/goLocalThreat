@@ -1,6 +1,12 @@
 export interface ParseWarningView {
+  provider?: string;
   code: string;
   message: string;
+  characterId?: number;
+  characterName?: string;
+  severity?: 'info' | 'warn' | 'error';
+  userVisible?: boolean;
+  category?: string;
 }
 
 export interface ParseSummaryView {
@@ -33,7 +39,11 @@ export interface AnalysisSessionView {
     resolvedCount: number;
     unresolvedNames: string[];
     invalidLines: number;
-    warnings: string[];
+    warnings: ParseWarningView[];
+    globalWarnings: ParseWarningView[];
+    warningsByPilotId: Record<string, ParseWarningView[]>;
+    severityCounts: Record<'info' | 'warn' | 'error', number>;
+    providerCounts: Record<string, number>;
   };
   parseSummary: ParseSummaryView;
   pilots: PilotThreatView[];

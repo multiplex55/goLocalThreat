@@ -14,7 +14,11 @@ vi.mock('../../../lib/api', () => ({
       resolvedCount: dto.pilots.length,
       unresolvedNames: dto.unresolvedNames ?? [],
       invalidLines: dto.source.invalidLines.length,
-      warnings: dto.warnings.map((warning: { provider: string; message: string }) => `${warning.provider}: ${warning.message}`),
+      warnings: dto.warnings.map((warning: { provider: string; code: string; message: string }) => ({ ...warning })),
+      globalWarnings: dto.warnings.map((warning: { provider: string; code: string; message: string }) => ({ ...warning })),
+      warningsByPilotId: {},
+      severityCounts: { info: dto.warnings.length, warn: 0, error: 0 },
+      providerCounts: {},
     },
     parseSummary: {
       candidateCount: dto.source.candidateNames.length,

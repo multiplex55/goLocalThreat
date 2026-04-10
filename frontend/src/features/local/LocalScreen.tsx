@@ -17,6 +17,7 @@ export interface LocalScreenProps {
 }
 
 function toThreatRows(analyzeState: AnalyzeState): ThreatRowView[] {
+  const warningsByPilotId = analyzeState.data?.diagnostics.warningsByPilotId ?? {};
   return (analyzeState.data?.pilots ?? []).map((pilot, index) => ({
     id: pilot.id,
     pilotName: pilot.name,
@@ -28,6 +29,12 @@ function toThreatRows(analyzeState: AnalyzeState): ThreatRowView[] {
     tags: pilot.reasons,
     lastSeen: `confidence ${Math.round(pilot.confidence * 100)}%`,
     status: analyzeState.status === 'loading' ? 'loading' : 'ready',
+    warnings: warningsByPilotId[pilot.id]?.map((warning) => ({
+      provider: warning.provider,
+      severity: warning.severity,
+      userVisible: warning.userVisible,
+      message: warning.message,
+    })) ?? [],
   }))
     .map((row, index) => ({ ...row, id: row.id || String(index) }));
 }
@@ -53,6 +60,7 @@ export function LocalScreen({
   const rows = useMemo(() => toThreatRows(analyzeState), [analyzeState]);
   const diagnostics = analyzeState.data?.diagnostics;
   const unresolvedNames = diagnostics?.unresolvedNames ?? [];
+  const globalWarnings = diagnostics?.globalWarnings ?? [];
 
   const [selectedRowIndex, setSelectedRowIndex] = useState(-1);
 
@@ -152,12 +160,33 @@ export function LocalScreen({
             {detail.sections.map((section) => (
               <p key={section.label}><strong>{section.label}:</strong> {section.value}</p>
             ))}
+            <div data-testid="detail-warnings">
+              <strong>Warnings</strong>
+              <ul>
+                {detail.warnings.map((warning, index) => (
+                  <li key={`${warning.text}-${index}`} style={{ opacity: warning.muted ? 0.6 : 1 }}>
+                    {warning.text}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </aside>
       </div>
 
       <footer data-testid="local-bottom-strip">
-        Status: {analyzeState.status} · pilots: {rows.length} · warnings: {diagnostics?.warnings.length ?? 0}
+        <details data-testid="diagnostics-expander">
+          <summary>
+            Diagnostics · global warnings: {globalWarnings.length} · errors: {diagnostics?.severityCounts.error ?? 0} · warns: {diagnostics?.severityCounts.warn ?? 0}
+          </summary>
+          <p>
+            Providers:&nbsp;
+            {Object.entries(diagnostics?.providerCounts ?? {})
+              .map(([provider, count]) => `${provider}=${count}`)
+              .join(', ') || 'none'}
+          </p>
+        </details>
+        <span>Status: {analyzeState.status} · pilots: {rows.length}</span>
       </footer>
     </section>
   );

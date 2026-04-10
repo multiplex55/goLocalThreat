@@ -20,6 +20,10 @@ function buildState(): AnalyzeState {
         unresolvedNames: ['Ghost'],
         invalidLines: 0,
         warnings: [],
+        globalWarnings: [],
+        warningsByPilotId: {},
+        severityCounts: { info: 0, warn: 0, error: 0 },
+        providerCounts: {},
       },
       parseSummary: {
         candidateCount: 2,
@@ -77,5 +81,22 @@ describe('LocalScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: /Beta · 52 · medium/i }));
     expect(screen.getByTestId('detail-pane')).toHaveTextContent('Corporation: B Corp');
     expect(screen.getByTestId('detail-title')).toHaveTextContent('Beta');
+  });
+
+  it('diagnostics badge reflects global warning counts and detail panel shows selected pilot warnings only', () => {
+    const state = buildState();
+    state.data!.diagnostics.globalWarnings = [{ code: 'RATE_LIMITED', message: 'provider slow', severity: 'warn', provider: 'esi', userVisible: true }];
+    state.data!.diagnostics.severityCounts = { info: 0, warn: 1, error: 0 };
+    state.data!.diagnostics.providerCounts = { esi: 1 };
+    state.data!.diagnostics.warningsByPilotId = {
+      '11': [{ code: 'DETAIL_TIME_INVALID', message: 'Beta had invalid time', severity: 'info', provider: 'zkill', userVisible: false }],
+    };
+
+    render(<LocalScreen pastedText="" analyzeState={state} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
+    expect(screen.getByTestId('diagnostics-expander')).toHaveTextContent('global warnings: 1');
+    expect(screen.getByTestId('detail-warnings')).not.toHaveTextContent('Beta had invalid time');
+
+    fireEvent.click(screen.getByRole('button', { name: /Beta · 52 · medium/i }));
+    expect(screen.getByTestId('detail-warnings')).toHaveTextContent('Beta had invalid time');
   });
 });

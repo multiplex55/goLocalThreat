@@ -4,6 +4,11 @@ export interface ParseWarningDTO {
   provider: string;
   code: string;
   message: string;
+  characterId?: number;
+  characterName?: string;
+  severity?: 'info' | 'warn' | 'error';
+  userVisible?: boolean;
+  category?: string;
 }
 
 export interface FreshnessDTO {

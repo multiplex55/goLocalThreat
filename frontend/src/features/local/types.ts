@@ -11,6 +11,12 @@ export interface ThreatRowView {
   tags: string[];
   lastSeen: string;
   status: 'ready' | 'provisional' | 'loading';
+  warnings?: Array<{
+    provider?: string;
+    severity?: 'info' | 'warn' | 'error';
+    userVisible?: boolean;
+    message: string;
+  }>;
 }
 
 export interface LocalSettingsView {
@@ -37,6 +43,10 @@ export interface LocalScreenViewModel {
   status: LocalStatusView;
   provisional: boolean;
   loading: boolean;
+  diagnosticsSummary: {
+    severityCounts: Record<'info' | 'warn' | 'error', number>;
+    providerCounts: Record<string, number>;
+  };
 }
 
 export interface ThreatTableOptions {
