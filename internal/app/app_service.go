@@ -1,24 +1,36 @@
 package app
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	"golocalthreat/internal/domain"
 	"golocalthreat/internal/parser"
+	"golocalthreat/internal/providers/esi"
 )
 
 type AppService struct {
 	mu       sync.Mutex
 	settings domain.Settings
 	sessions map[string]domain.AnalysisSession
+	esi      esi.Provider
 }
 
 func NewAppService() *AppService {
+	return NewAppServiceWithProvider(esi.NoopProvider{})
+}
+
+func NewAppServiceWithProvider(provider esi.Provider) *AppService {
+	if provider == nil {
+		provider = esi.NoopProvider{}
+	}
 	return &AppService{
 		settings: domain.Settings{RefreshInterval: 30},
 		sessions: make(map[string]domain.AnalysisSession),
+		esi:      provider,
 	}
 }
 
@@ -33,6 +45,8 @@ func (a *AppService) AnalyzePastedText(text string) (domain.AnalysisSession, err
 	for _, item := range parsed.InvalidLines {
 		invalidLines = append(invalidLines, domain.InvalidLine{Line: item.Line, ReasonCode: item.ReasonCode})
 	}
+	identities, identityWarnings := a.resolveIdentities(parsed.Candidates)
+
 	s := domain.AnalysisSession{
 		SessionID: fmt.Sprintf("session-%d", now.UnixNano()),
 		CreatedAt: now,
@@ -40,6 +54,7 @@ func (a *AppService) AnalyzePastedText(text string) (domain.AnalysisSession, err
 		Source: domain.ParseResult{
 			RawText:             text,
 			NormalizedText:      parsed.NormalizedText,
+			ParsedCharacters:    identities,
 			CandidateNames:      parsed.Candidates,
 			InvalidLines:        invalidLines,
 			Warnings:            parserWarnings,
@@ -51,9 +66,9 @@ func (a *AppService) AnalyzePastedText(text string) (domain.AnalysisSession, err
 		},
 		Pilots:   []domain.PilotThreatRecord{},
 		Settings: a.settings,
-		Warnings: []domain.ProviderWarning{{Provider: "bootstrap", Code: "PLACEHOLDER", Message: "analysis pipeline not yet connected"}},
+		Warnings: identityWarnings,
 		Freshness: domain.FetchFreshness{
-			Source:   "placeholder",
+			Source:   "esi",
 			DataAsOf: now,
 			IsStale:  false,
 		},
@@ -67,6 +82,34 @@ func (a *AppService) AnalyzePastedText(text string) (domain.AnalysisSession, err
 	a.mu.Unlock()
 
 	return s, nil
+}
+
+func (a *AppService) resolveIdentities(names []string) ([]domain.CharacterIdentity, []domain.ProviderWarning) {
+	if len(names) == 0 {
+		return nil, nil
+	}
+	resolved, err := a.esi.ResolveNames(context.Background(), names)
+	warnings := make([]domain.ProviderWarning, 0)
+	if err != nil {
+		if errors.Is(err, domain.ErrRateLimited) {
+			warnings = append(warnings, domain.ProviderWarning{Provider: "esi", Code: "RATE_LIMITED", Message: err.Error()})
+			return nil, warnings
+		}
+		warnings = append(warnings, domain.ProviderWarning{Provider: "esi", Code: "RESOLVE_FAILED", Message: err.Error()})
+		return nil, warnings
+	}
+	for _, unresolved := range resolved.Unresolved {
+		warnings = append(warnings, domain.ProviderWarning{Provider: "esi", Code: "UNRESOLVED_NAME", Message: unresolved})
+	}
+	ids := make([]int64, 0, len(resolved.Characters))
+	for _, id := range resolved.Characters {
+		ids = append(ids, id)
+	}
+	identities, err := a.esi.GetCharacters(context.Background(), ids)
+	if err != nil {
+		warnings = append(warnings, domain.ProviderWarning{Provider: "esi", Code: "IDENTITY_PARTIAL", Message: err.Error()})
+	}
+	return identities, warnings
 }
 
 func (a *AppService) RefreshSession(sessionID string) (domain.AnalysisSession, error) {
