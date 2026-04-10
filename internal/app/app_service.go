@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"golocalthreat/internal/domain"
+	"golocalthreat/internal/parser"
 )
 
 type AppService struct {
@@ -23,13 +24,30 @@ func NewAppService() *AppService {
 
 func (a *AppService) AnalyzePastedText(text string) (domain.AnalysisSession, error) {
 	now := time.Now().UTC()
+	parsed := parser.NewOrchestrator().Parse(text)
+	parserWarnings := make([]domain.ProviderWarning, 0, len(parsed.Warnings))
+	for _, warning := range parsed.Warnings {
+		parserWarnings = append(parserWarnings, domain.ProviderWarning{Provider: "parser", Code: warning, Message: warning})
+	}
+	invalidLines := make([]domain.InvalidLine, 0, len(parsed.InvalidLines))
+	for _, item := range parsed.InvalidLines {
+		invalidLines = append(invalidLines, domain.InvalidLine{Line: item.Line, ReasonCode: item.ReasonCode})
+	}
 	s := domain.AnalysisSession{
 		SessionID: fmt.Sprintf("session-%d", now.UnixNano()),
 		CreatedAt: now,
 		UpdatedAt: now,
 		Source: domain.ParseResult{
-			RawText:  text,
-			ParsedAt: now,
+			RawText:             text,
+			NormalizedText:      parsed.NormalizedText,
+			CandidateNames:      parsed.Candidates,
+			InvalidLines:        invalidLines,
+			Warnings:            parserWarnings,
+			InputKind:           string(parsed.InputKind),
+			Confidence:          parsed.Confidence,
+			RemovedDuplicates:   parsed.RemovedDuplicates,
+			SuspiciousArtifacts: parsed.SuspiciousArtifacts,
+			ParsedAt:            now,
 		},
 		Pilots:   []domain.PilotThreatRecord{},
 		Settings: a.settings,

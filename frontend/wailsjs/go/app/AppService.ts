@@ -2,8 +2,15 @@
 
 export interface ParseResultDTO {
   rawText: string;
+  normalizedText: string;
   parsedCharacters: Array<{ characterId: number; name: string }>;
+  candidateNames: string[];
+  invalidLines: Array<{ line: string; reasonCode: string }>;
   warnings: Array<{ provider: string; code: string; message: string }>;
+  inputKind: string;
+  confidence: number;
+  removedDuplicates: number;
+  suspiciousArtifacts: number;
   parsedAt: string;
 }
 
@@ -23,8 +30,15 @@ export function AnalyzePastedText(text: string): Promise<AnalysisSessionDTO> {
     updatedAt: new Date().toISOString(),
     source: {
       rawText: text,
+      normalizedText: text,
       parsedCharacters: [],
+      candidateNames: [],
+      invalidLines: [],
       warnings: [],
+      inputKind: 'unknown',
+      confidence: 0,
+      removedDuplicates: 0,
+      suspiciousArtifacts: 0,
       parsedAt: new Date().toISOString(),
     },
     pilots: [],
