@@ -14,7 +14,6 @@ type NamedEntity struct {
 }
 
 type Character struct {
-	CharacterID   int64  `json:"character_id"`
 	Name          string `json:"name"`
 	CorporationID int64  `json:"corporation_id"`
 	AllianceID    int64  `json:"alliance_id,omitempty"`

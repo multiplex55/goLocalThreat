@@ -187,10 +187,13 @@ func (c *Client) fetchCharacter(ctx context.Context, id int64) (domain.Character
 		return domain.CharacterIdentity{}, 0, err
 	}
 	identity := domain.CharacterIdentity{
-		CharacterID: payload.CharacterID,
+		CharacterID: id,
 		Name:        payload.Name,
 		CorpID:      payload.CorporationID,
 		AllianceID:  payload.AllianceID,
+	}
+	if identity.CharacterID <= 0 {
+		return domain.CharacterIdentity{}, 0, fmt.Errorf("esi character hydrate produced invalid character id for requested id %d", id)
 	}
 	return identity, cache.TTLFromHeaders(headers, stableMetadataTTL), nil
 }
