@@ -28,6 +28,13 @@ export interface AnalysisSessionView {
   pilotCount: number;
   warningCount: number;
   sourceTextLength: number;
+  diagnostics: {
+    candidateNamesCount: number;
+    resolvedCount: number;
+    unresolvedNames: string[];
+    invalidLines: number;
+    warnings: string[];
+  };
   parseSummary: ParseSummaryView;
   pilots: PilotThreatView[];
 }

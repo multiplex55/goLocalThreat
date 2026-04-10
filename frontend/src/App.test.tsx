@@ -47,6 +47,13 @@ describe('App shell', () => {
       pilotCount: 2,
       warningCount: 0,
       sourceTextLength: 10,
+      diagnostics: {
+        candidateNamesCount: 2,
+        resolvedCount: 2,
+        unresolvedNames: [],
+        invalidLines: 0,
+        warnings: [],
+      },
       parseSummary: {
         candidateCount: 2,
         invalidLineCount: 0,
@@ -89,6 +96,13 @@ describe('App shell', () => {
       pilotCount: 0,
       warningCount: 0,
       sourceTextLength: 5,
+      diagnostics: {
+        candidateNamesCount: 0,
+        resolvedCount: 0,
+        unresolvedNames: [],
+        invalidLines: 0,
+        warnings: [],
+      },
       parseSummary: {
         candidateCount: 0,
         invalidLineCount: 0,

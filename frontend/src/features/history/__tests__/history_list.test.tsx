@@ -9,6 +9,13 @@ vi.mock('../../../lib/api', () => ({
     pilotCount: dto.pilots.length,
     warningCount: dto.warnings.length,
     sourceTextLength: dto.source.rawText.length,
+    diagnostics: {
+      candidateNamesCount: dto.source.candidateNames.length,
+      resolvedCount: dto.pilots.length,
+      unresolvedNames: dto.unresolvedNames ?? [],
+      invalidLines: dto.source.invalidLines.length,
+      warnings: dto.warnings.map((warning: { provider: string; message: string }) => `${warning.provider}: ${warning.message}`),
+    },
     parseSummary: {
       candidateCount: dto.source.candidateNames.length,
       invalidLineCount: dto.source.invalidLines.length,
@@ -16,6 +23,7 @@ vi.mock('../../../lib/api', () => ({
       warningCount: dto.source.warnings.length,
       warnings: dto.source.warnings.map((warning: { code: string; message: string }) => ({ code: warning.code, message: warning.message })),
     },
+    pilots: [],
   })),
 }));
 

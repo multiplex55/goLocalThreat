@@ -14,6 +14,13 @@ describe('analyze state machine', () => {
         pilotCount: 1,
         warningCount: 0,
         sourceTextLength: 5,
+        diagnostics: {
+          candidateNamesCount: 1,
+          resolvedCount: 1,
+          unresolvedNames: [],
+          invalidLines: 0,
+          warnings: [],
+        },
         parseSummary: {
           candidateCount: 1,
           invalidLineCount: 0,
