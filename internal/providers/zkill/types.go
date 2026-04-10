@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"golocalthreat/internal/domain"
+	"golocalthreat/internal/scoring"
 )
 
 const providerName = "zkill"
@@ -18,11 +19,39 @@ type SummaryRow struct {
 }
 
 func (s SummaryRow) ToThreatBreakdown() domain.ThreatBreakdown {
-	total := float64(s.RecentKills*2+s.RecentLosses) + s.DangerRatio
+	engine := scoring.NewEngine(scoring.DefaultSettings)
+	snapshot := time.Unix(0, 0).UTC()
+	if !s.LastActivity.IsZero() {
+		snapshot = s.LastActivity
+	}
+	input := scoring.EnrichedPilotInput{
+		SnapshotAt:     snapshot,
+		RecentKills:    scoring.OptionalFloat{Value: float64(s.RecentKills), Known: true},
+		RecentLosses:   scoring.OptionalFloat{Value: float64(s.RecentLosses), Known: true},
+		DangerRatio:    scoring.OptionalFloat{Value: s.DangerRatio, Known: true},
+		LastActivityAt: scoring.OptionalTime{Value: s.LastActivity, Known: !s.LastActivity.IsZero()},
+	}
+	res := engine.Score(input)
+	breakdown := make([]domain.ThreatComponentBreakdown, 0, len(res.Breakdown))
+	for _, b := range res.Breakdown {
+		breakdown = append(breakdown, domain.ThreatComponentBreakdown{
+			Component:    b.Component,
+			Raw:          b.Raw,
+			Weight:       b.Weight,
+			Contribution: b.Contribution,
+			Unknown:      b.Unknown,
+			Explanation:  b.Explanation,
+		})
+	}
 	return domain.ThreatBreakdown{
-		Total:        total,
-		RecentKills:  s.RecentKills,
-		RecentLosses: s.RecentLosses,
+		Total:         res.ThreatScore,
+		ThreatScore:   res.ThreatScore,
+		ThreatBand:    res.ThreatBand,
+		ThreatReasons: res.ThreatReasons,
+		Breakdown:     breakdown,
+		Confidence:    res.Confidence,
+		RecentKills:   s.RecentKills,
+		RecentLosses:  s.RecentLosses,
 	}
 }
 
