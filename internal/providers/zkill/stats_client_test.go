@@ -47,21 +47,36 @@ func TestStatsClientFetchSummaryBuildsExactPathAndUserAgent(t *testing.T) {
 	const expectedPath = "/api/stats/characterID/90000001/"
 
 	var gotPath string
+	var gotAccept string
+	var gotAcceptEncoding string
 	var gotUserAgent string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
+		gotAccept = r.Header.Get("Accept")
+		gotAcceptEncoding = r.Header.Get("Accept-Encoding")
 		gotUserAgent = r.Header.Get("User-Agent")
 		_, _ = w.Write([]byte(`{"character_id":90000001,"kills":1,"losses":0,"danger":1.0}`))
 	}))
 	defer ts.Close()
 
-	client := NewStatsClient(ts.URL + "/api/")
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			DisableCompression: true,
+		},
+	}
+	client := NewStatsClient(ts.URL + "/api/").WithHTTPClient(httpClient)
 	if _, err := client.FetchSummary(context.Background(), characterID); err != nil {
 		t.Fatalf("FetchSummary err: %v", err)
 	}
 
 	if gotPath != expectedPath {
 		t.Fatalf("request path = %q, want %q", gotPath, expectedPath)
+	}
+	if gotAccept != "application/json" {
+		t.Fatalf("request Accept = %q, want %q", gotAccept, "application/json")
+	}
+	if gotAcceptEncoding != "" {
+		t.Fatalf("request should not set Accept-Encoding explicitly, got %q", gotAcceptEncoding)
 	}
 	if gotUserAgent == "" {
 		t.Fatal("request missing User-Agent header")
