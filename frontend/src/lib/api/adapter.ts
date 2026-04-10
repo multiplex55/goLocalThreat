@@ -1,4 +1,5 @@
 import * as AppService from '../../../wailsjs/go/app/AppService';
+import type { SettingsViewModel } from '../../features/settings/types';
 import type { AnalysisSessionView } from '../../types/analysis';
 
 export function toAnalysisSessionView(dto: AppService.AnalysisSessionDTO): AnalysisSessionView {
@@ -21,4 +22,16 @@ export function toAnalysisSessionView(dto: AppService.AnalysisSessionDTO): Analy
 export async function analyzePastedText(text: string): Promise<AnalysisSessionView> {
   const dto = await AppService.AnalyzePastedText(text);
   return toAnalysisSessionView(dto);
+}
+
+export async function loadRecentSessions(): Promise<AppService.AnalysisSessionDTO[]> {
+  return AppService.LoadRecentSessions();
+}
+
+export async function loadSettings(): Promise<SettingsViewModel> {
+  return AppService.LoadSettings() as Promise<SettingsViewModel>;
+}
+
+export async function saveSettings(settings: SettingsViewModel): Promise<SettingsViewModel> {
+  return AppService.SaveSettings(settings) as Promise<SettingsViewModel>;
 }

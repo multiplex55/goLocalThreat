@@ -26,3 +26,46 @@ Eve Online Local Threat in Go
 - **Frontend API adapter (`frontend/src/lib/api`)**
   - Owns mapping generated Wails bindings into stable UI view models.
   - UI features/components should import this adapter only (never raw generated bindings).
+
+## Frontend feature modules
+
+- `frontend/src/features/settings`
+  - Provides settings form state, validation, load/save actions, and settings defaults for score weights/thresholds, visible columns, density/theme, zKill TTL values, and ignored/pinned entities.
+  - Uses only coarse Wails methods through the adapter (`LoadSettings`, `SaveSettings`).
+- `frontend/src/features/history`
+  - Provides history list state and helper actions to reopen previous sessions and inspect parse summaries.
+  - Uses only coarse Wails method through the adapter (`LoadRecentSessions`).
+
+## Build wrapper (`build.bat`)
+
+`build.bat` is a thin wrapper around native tool commands (wrapper philosophy). It does not reimplement build logic; it delegates to `npm`, `go`, and `wails` while standardizing output paths to `dist/` and embedding metadata (`main.version`, `main.commit`, `main.date`) for build/release binaries.
+
+### Commands
+
+- `build.bat frontend-install`
+  - Runs: `npm ci` in `frontend/`.
+  - Expected output: npm dependency installation logs.
+- `build.bat frontend-dev`
+  - Runs: `npm run dev` in `frontend/`.
+  - Expected output: frontend dev-server logs.
+- `build.bat frontend-build`
+  - Runs: `npm run build` in `frontend/`.
+  - Expected output: frontend production build logs.
+- `build.bat wails-generate`
+  - Runs: `wails generate module` in repo root.
+  - Expected output: generated Wails bindings under `frontend/wailsjs`.
+- `build.bat dev`
+  - Runs: `wails dev`.
+  - Expected output: Wails development app logs.
+- `build.bat test`
+  - Runs: `go test ./...` then `npm test` in `frontend/`.
+  - Expected output: Go test output followed by Vitest summary.
+- `build.bat build`
+  - Runs: `wails build -clean -o dist\goLocalThreat.exe` with version ldflags.
+  - Expected output: packaged app binary in `dist/`.
+- `build.bat release`
+  - Runs: `wails build -clean -nsis -o dist\goLocalThreat.exe` with version ldflags.
+  - Expected output: release-grade installer artifacts and binary in `dist/`.
+- `build.bat clean`
+  - Removes: `dist/` and generated frontend bindings at `frontend/wailsjs/`.
+  - Expected output: cleanup log lines.
