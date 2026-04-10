@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import './App.css';
 import { HistoryFeature } from './features/history/HistoryFeature';
-import { LocalFeature } from './features/local/LocalFeature';
+import { LocalScreen } from './features/local/LocalScreen';
 import { initialAnalyzeState, mapAnalyzeError, reduceAnalyzeState } from './features/local/analyzeState';
 import { SettingsFeature } from './features/settings/SettingsFeature';
 import { analyzePastedText } from './lib/api';
@@ -11,7 +11,6 @@ type AppTab = 'local' | 'history' | 'settings';
 function App() {
   const [tab, setTab] = useState<AppTab>('local');
   const [pastedText, setPastedText] = useState('');
-  const [selectedPilotId, setSelectedPilotId] = useState<string | null>(null);
   const [analyzeState, setAnalyzeState] = useState(initialAnalyzeState);
   const [historyQuery, setHistoryQuery] = useState('');
   const [settingsNote, setSettingsNote] = useState('');
@@ -27,11 +26,9 @@ function App() {
     try {
       const result = await analyzePastedText(pastedText);
       setAnalyzeState((prev) => reduceAnalyzeState(prev, { type: 'SUCCESS', payload: result }));
-      setSelectedPilotId(result.pilots[0]?.id ?? null);
     } catch (error) {
       const mapped = mapAnalyzeError(error);
       setAnalyzeState((prev) => reduceAnalyzeState(prev, { type: 'ERROR', ...mapped }));
-      setSelectedPilotId(null);
     }
   };
   const screen = (() => {
@@ -43,14 +40,12 @@ function App() {
     }
 
     return (
-      <LocalFeature
+      <LocalScreen
         pastedText={pastedText}
-        selectedPilotId={selectedPilotId}
         analyzeState={analyzeState}
         onPasteChange={setPastedText}
         onAnalyze={runAnalyze}
-        onRetry={runAnalyze}
-        onSelectPilot={setSelectedPilotId}
+        useLocalIntelV2Layout
       />
     );
   })();
