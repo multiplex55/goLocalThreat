@@ -25,6 +25,7 @@ func main() {
 	meta := bootstrap.ResolveBuildMetadata(version, commit, date)
 	wiring := bootstrap.DefaultStartupWiring()
 	service := app.NewAppService()
+	service.SetBuildInfo(app.BuildInfo{Version: meta.Version, Commit: meta.Commit, Date: meta.Date})
 
 	err := wails.Run(&options.App{
 		Title:            wiring.AppName,
@@ -34,6 +35,8 @@ func main() {
 		MinHeight:        720,
 		AssetServer:      &assetserver.Options{Assets: assets},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
+		OnStartup:        service.Startup,
+		OnShutdown:       service.Shutdown,
 		Bind:             []interface{}{service},
 	})
 	if err != nil {

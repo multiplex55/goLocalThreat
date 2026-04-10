@@ -5,9 +5,10 @@ Eve Online Local Threat in Go
 
 `goLocalThreat` is organized around a strict boundary between application contracts, domain entities, and infrastructure adapters.
 
-- **Bootstrap (`cmd/golocalthreat`)**
-  - Owns process startup only.
-  - Wires the Wails-facing service and exits; no business logic.
+- **Bootstrap (`main.go`)**
+  - Root `main.go` is the single startup entrypoint and source of truth for Wails composition.
+  - Constructs `internal/app.AppService`, injects build metadata (`version`, `commit`, `date`), and wires startup/shutdown hooks.
+  - `cmd/golocalthreat` has been retired to avoid duplicate startup paths.
 - **Application layer (`internal/app`)**
   - Owns coarse API contracts exposed to Wails/UI (`AnalyzePastedText`, refresh actions, settings actions).
   - Coordinates domain objects and hides provider-specific DTOs.
@@ -69,3 +70,16 @@ Eve Online Local Threat in Go
 - `build.bat clean`
   - Removes: `dist/` and generated frontend bindings at `frontend/wailsjs/`.
   - Expected output: cleanup log lines.
+
+## Build and run
+
+- **Source of truth:** root `main.go` is the only supported app bootstrap path.
+- **Development:**
+  - `build.bat dev` (recommended on Windows)
+  - or `wails dev`
+- **Tests:**
+  - `build.bat test`
+  - or `go test ./...` and `npm test` in `frontend/`
+- **Production build:**
+  - `build.bat build`
+  - or `wails build -clean -o dist\\goLocalThreat.exe`
