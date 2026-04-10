@@ -5,13 +5,18 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+
+	"golocalthreat/internal/bootstrap"
 )
 
 func TestBuildProvidersNoopMode(t *testing.T) {
-	t.Setenv("GOLT_PROVIDER_MODE", "noop")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	cfg := bootstrap.ProviderConfig{Mode: bootstrap.ProviderModeNoop}
 
-	esiProvider, zkillProvider, mode := buildProviders(logger)
+	esiProvider, zkillProvider, mode, err := buildProviders(logger, cfg)
+	if err != nil {
+		t.Fatalf("buildProviders returned error: %v", err)
+	}
 	if mode != "noop" {
 		t.Fatalf("expected noop mode, got %q", mode)
 	}
@@ -24,19 +29,24 @@ func TestBuildProvidersNoopMode(t *testing.T) {
 	}
 }
 
-func TestBuildProvidersInvalidTimeoutFallsBack(t *testing.T) {
-	t.Setenv("GOLT_PROVIDER_MODE", "")
-	t.Setenv("GOLT_PROVIDER_TIMEOUT", "bad-timeout")
-	t.Setenv("GOLT_ESI_BASE_URL", "")
-	t.Setenv("GOLT_ZKILL_BASE_URL", "")
+func TestBuildProvidersRealModeWiresRealProviders(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	cfg := bootstrap.ProviderConfig{
+		Mode:         bootstrap.ProviderModeReal,
+		Timeout:      bootstrap.DefaultProviderTimeout,
+		ESIBaseURL:   "https://esi.evetech.net/latest",
+		ZKillBaseURL: "https://zkillboard.com",
+	}
 
-	esiProvider, zkillProvider, mode := buildProviders(logger)
+	esiProvider, zkillProvider, mode, err := buildProviders(logger, cfg)
+	if err != nil {
+		t.Fatalf("buildProviders returned error: %v", err)
+	}
 	if mode != "real" {
-		t.Fatalf("expected real mode fallback, got %q", mode)
+		t.Fatalf("expected real mode, got %q", mode)
 	}
 	if esiProvider == nil || zkillProvider == nil {
-		t.Fatal("expected real providers with fallback defaults")
+		t.Fatal("expected real providers")
 	}
 
 	// Smoke-check wiring uses concrete providers that accept calls.
@@ -46,11 +56,15 @@ func TestBuildProvidersInvalidTimeoutFallsBack(t *testing.T) {
 	}
 }
 
-func TestValueOrDefault(t *testing.T) {
-	if got := valueOrDefault("", "fallback"); got != "fallback" {
-		t.Fatalf("expected fallback value, got %q", got)
+func TestBuildProvidersRealModeMissingConfigReturnsError(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	cfg := bootstrap.ProviderConfig{
+		Mode:    bootstrap.ProviderModeReal,
+		Timeout: bootstrap.DefaultProviderTimeout,
 	}
-	if got := valueOrDefault("set", "fallback"); got != "set" {
-		t.Fatalf("expected set value, got %q", got)
+
+	_, _, _, err := buildProviders(logger, cfg)
+	if err == nil {
+		t.Fatal("expected startup error for missing real-mode provider config")
 	}
 }

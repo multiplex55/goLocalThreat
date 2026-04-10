@@ -111,6 +111,14 @@ Eve Online Local Threat in Go
 ## Build and run
 
 - **Source of truth:** root `main.go` is the only supported app bootstrap path.
+- **Provider mode/config (startup):**
+  - `PROVIDER_MODE=real|noop` controls provider wiring. Default is `real` when unset.
+  - `noop` mode is only enabled when explicitly set (`PROVIDER_MODE=noop`).
+  - `real` mode requires endpoint configuration and fails fast at startup when missing:
+    - `ESI_BASE_URL` (or legacy `GOLT_ESI_BASE_URL`)
+    - `ZKILL_BASE_URL` (or legacy `GOLT_ZKILL_BASE_URL`)
+  - Optional timeout override: `PROVIDER_TIMEOUT` (or legacy `GOLT_PROVIDER_TIMEOUT`), e.g. `5s`.
+  - On startup, the app logs the effective provider mode and the selected provider implementation types.
 - **Development:**
   - `build.bat dev` (recommended on Windows)
   - or `wails dev`
