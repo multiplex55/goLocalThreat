@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 
 	"golocalthreat/internal/bootstrap"
@@ -66,5 +67,33 @@ func TestBuildProvidersRealModeMissingConfigReturnsError(t *testing.T) {
 	_, _, _, err := buildProviders(logger, cfg)
 	if err == nil {
 		t.Fatal("expected startup error for missing real-mode provider config")
+	}
+}
+
+func TestInitializeAppServiceIncludesConfigGuidanceForWailsGenerateStartup(t *testing.T) {
+	t.Setenv("PROVIDER_MODE", "real")
+	t.Setenv("ESI_BASE_URL", "")
+	t.Setenv("GOLT_ESI_BASE_URL", "")
+	t.Setenv("ZKILL_BASE_URL", "https://zkillboard.com")
+	t.Setenv("GOLT_ZKILL_BASE_URL", "")
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	meta := bootstrap.ResolveBuildMetadata("", "", "")
+
+	_, err := initializeAppService(logger, meta)
+	if err == nil {
+		t.Fatal("expected startup initialization to fail for missing ESI base URL")
+	}
+
+	for _, expected := range []string{
+		"startup configuration validation failed",
+		"ESI_BASE_URL",
+		"GOLT_ESI_BASE_URL",
+		"set ESI_BASE_URL=",
+		"export ESI_BASE_URL=",
+	} {
+		if !strings.Contains(err.Error(), expected) {
+			t.Fatalf("expected error to contain %q, got %q", expected, err.Error())
+		}
 	}
 }

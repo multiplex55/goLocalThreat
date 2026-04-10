@@ -2,8 +2,10 @@ package bootstrap
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -108,5 +110,123 @@ func TestLoadProviderConfigFromEnvRejectsInvalidMode(t *testing.T) {
 	_, err := LoadProviderConfigFromEnv()
 	if err == nil {
 		t.Fatal("expected invalid provider mode to be rejected")
+	}
+}
+
+func TestLoadProviderConfigFromEnvRealModeMissingESIEnvReturnsStructuredError(t *testing.T) {
+	t.Setenv("PROVIDER_MODE", "real")
+	t.Setenv("ESI_BASE_URL", "")
+	t.Setenv("GOLT_ESI_BASE_URL", "")
+	t.Setenv("ZKILL_BASE_URL", "https://zkillboard.com")
+
+	_, err := LoadProviderConfigFromEnv()
+	if err == nil {
+		t.Fatal("expected missing ESI base URL to fail")
+	}
+
+	var cfgErr *ConfigValidationError
+	if !errors.As(err, &cfgErr) {
+		t.Fatalf("expected ConfigValidationError, got %T: %v", err, err)
+	}
+	if cfgErr.Mode != ProviderModeReal {
+		t.Fatalf("expected real mode in validation error, got %q", cfgErr.Mode)
+	}
+
+	msg := err.Error()
+	for _, expected := range []string{
+		"mode=\"real\"",
+		"ESI_BASE_URL",
+		"GOLT_ESI_BASE_URL",
+		"set ESI_BASE_URL=",
+		"export ESI_BASE_URL=",
+	} {
+		if !strings.Contains(msg, expected) {
+			t.Fatalf("expected error message to contain %q, got %q", expected, msg)
+		}
+	}
+}
+
+func TestLoadProviderConfigFromEnvRealModeOnlyESIBaseURLSetPasses(t *testing.T) {
+	t.Setenv("PROVIDER_MODE", "real")
+	t.Setenv("ESI_BASE_URL", "https://esi.evetech.net/latest")
+	t.Setenv("GOLT_ESI_BASE_URL", "")
+	t.Setenv("ZKILL_BASE_URL", "https://zkillboard.com")
+
+	cfg, err := LoadProviderConfigFromEnv()
+	if err != nil {
+		t.Fatalf("expected config to pass, got error: %v", err)
+	}
+	if cfg.ESIBaseURL != "https://esi.evetech.net/latest" {
+		t.Fatalf("unexpected ESI URL: %q", cfg.ESIBaseURL)
+	}
+}
+
+func TestLoadProviderConfigFromEnvRealModeOnlyLegacyESIBaseURLSetPasses(t *testing.T) {
+	t.Setenv("PROVIDER_MODE", "real")
+	t.Setenv("ESI_BASE_URL", "")
+	t.Setenv("GOLT_ESI_BASE_URL", "https://legacy-esi.example.com/latest")
+	t.Setenv("ZKILL_BASE_URL", "https://zkillboard.com")
+
+	cfg, err := LoadProviderConfigFromEnv()
+	if err != nil {
+		t.Fatalf("expected config to pass, got error: %v", err)
+	}
+	if cfg.ESIBaseURL != "https://legacy-esi.example.com/latest" {
+		t.Fatalf("expected legacy ESI URL, got %q", cfg.ESIBaseURL)
+	}
+}
+
+func TestLoadProviderConfigFromEnvRealModeBothESIEnvSetUsesPrimaryPrecedence(t *testing.T) {
+	t.Setenv("PROVIDER_MODE", "real")
+	t.Setenv("ESI_BASE_URL", "https://esi-primary.example.com/latest")
+	t.Setenv("GOLT_ESI_BASE_URL", "https://esi-legacy.example.com/latest")
+	t.Setenv("ZKILL_BASE_URL", "https://zkillboard.com")
+
+	cfg, err := LoadProviderConfigFromEnv()
+	if err != nil {
+		t.Fatalf("expected config to pass, got error: %v", err)
+	}
+	if cfg.ESIBaseURL != "https://esi-primary.example.com/latest" {
+		t.Fatalf("expected primary env var precedence, got %q", cfg.ESIBaseURL)
+	}
+}
+
+func TestLoadProviderConfigFromEnvNonRealModeMissingESIEnvDoesNotFail(t *testing.T) {
+	t.Setenv("PROVIDER_MODE", "noop")
+	t.Setenv("ESI_BASE_URL", "")
+	t.Setenv("GOLT_ESI_BASE_URL", "")
+	t.Setenv("ZKILL_BASE_URL", "")
+
+	cfg, err := LoadProviderConfigFromEnv()
+	if err != nil {
+		t.Fatalf("expected noop mode to ignore real provider URL requirement: %v", err)
+	}
+	if cfg.Mode != ProviderModeNoop {
+		t.Fatalf("expected noop mode, got %q", cfg.Mode)
+	}
+}
+
+func TestResolveESIBaseURLFromEnvIsolated(t *testing.T) {
+	cases := []struct {
+		name    string
+		primary string
+		legacy  string
+		want    string
+	}{
+		{name: "none set", primary: "", legacy: "", want: ""},
+		{name: "primary set", primary: "https://primary.example.com", legacy: "", want: "https://primary.example.com"},
+		{name: "legacy set", primary: "", legacy: "https://legacy.example.com", want: "https://legacy.example.com"},
+		{name: "both set primary wins", primary: "https://primary.example.com", legacy: "https://legacy.example.com", want: "https://primary.example.com"},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(ESIBaseURLPrimaryEnv, tc.primary)
+			t.Setenv(ESIBaseURLLegacyEnv, tc.legacy)
+			if got := resolveESIBaseURLFromEnv(); got != tc.want {
+				t.Fatalf("resolveESIBaseURLFromEnv() = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }

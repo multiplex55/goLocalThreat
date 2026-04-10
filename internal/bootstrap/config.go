@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -44,6 +45,35 @@ type ProviderConfig struct {
 	Timeout      time.Duration
 	ESIBaseURL   string
 	ZKillBaseURL string
+}
+
+const (
+	ESIBaseURLPrimaryEnv  = "ESI_BASE_URL"
+	ESIBaseURLLegacyEnv   = "GOLT_ESI_BASE_URL"
+	ZKillBaseURLPrimary   = "ZKILL_BASE_URL"
+	ZKillBaseURLLegacyEnv = "GOLT_ZKILL_BASE_URL"
+)
+
+type ConfigValidationError struct {
+	Mode             ProviderMode
+	CheckedVariables []string
+	Reason           string
+}
+
+func (e *ConfigValidationError) Error() string {
+	return fmt.Sprintf(
+		"provider configuration error: mode=%q checked=%s: %s. remediation (Windows): set %s=https://esi.evetech.net/latest. remediation (Unix): export %s=https://esi.evetech.net/latest",
+		e.Mode,
+		strings.Join(e.CheckedVariables, ","),
+		e.Reason,
+		ESIBaseURLPrimaryEnv,
+		ESIBaseURLPrimaryEnv,
+	)
+}
+
+func (e *ConfigValidationError) Is(target error) bool {
+	_, ok := target.(*ConfigValidationError)
+	return ok
 }
 
 func ResolveBuildMetadata(version, commit, date string) BuildMetadata {
@@ -91,18 +121,26 @@ func LoadProviderConfigFromEnv() (ProviderConfig, error) {
 	cfg := ProviderConfig{
 		Mode:         mode,
 		Timeout:      timeout,
-		ESIBaseURL:   strings.TrimSpace(firstEnv("ESI_BASE_URL", "GOLT_ESI_BASE_URL")),
-		ZKillBaseURL: strings.TrimSpace(firstEnv("ZKILL_BASE_URL", "GOLT_ZKILL_BASE_URL")),
+		ESIBaseURL:   resolveESIBaseURLFromEnv(),
+		ZKillBaseURL: strings.TrimSpace(firstEnv(ZKillBaseURLPrimary, ZKillBaseURLLegacyEnv)),
 	}
-	if mode == ProviderModeNoop {
+	if !isRealProviderMode(cfg.Mode) {
 		return cfg, nil
 	}
 
 	if cfg.ESIBaseURL == "" {
-		return ProviderConfig{}, fmt.Errorf("real provider mode requires ESI_BASE_URL (or GOLT_ESI_BASE_URL) to be set")
+		return ProviderConfig{}, &ConfigValidationError{
+			Mode:             cfg.Mode,
+			CheckedVariables: []string{ESIBaseURLPrimaryEnv, ESIBaseURLLegacyEnv},
+			Reason:           "real provider mode requires ESI_BASE_URL (or GOLT_ESI_BASE_URL) to be set",
+		}
 	}
 	if cfg.ZKillBaseURL == "" {
-		return ProviderConfig{}, fmt.Errorf("real provider mode requires ZKILL_BASE_URL (or GOLT_ZKILL_BASE_URL) to be set")
+		return ProviderConfig{}, &ConfigValidationError{
+			Mode:             cfg.Mode,
+			CheckedVariables: []string{ZKillBaseURLPrimary, ZKillBaseURLLegacyEnv},
+			Reason:           "real provider mode requires ZKILL_BASE_URL (or GOLT_ZKILL_BASE_URL) to be set",
+		}
 	}
 	if err := validateAbsoluteURL(cfg.ESIBaseURL, "ESI_BASE_URL"); err != nil {
 		return ProviderConfig{}, err
@@ -112,6 +150,10 @@ func LoadProviderConfigFromEnv() (ProviderConfig, error) {
 	}
 
 	return cfg, nil
+}
+
+func isRealProviderMode(mode ProviderMode) bool {
+	return mode == ProviderModeReal
 }
 
 func validateAbsoluteURL(raw, name string) error {
@@ -132,4 +174,14 @@ func firstEnv(keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func resolveESIBaseURLFromEnv() string {
+	// Deterministic precedence: prefer ESI_BASE_URL, then fallback to legacy GOLT_ESI_BASE_URL.
+	return strings.TrimSpace(firstEnv(ESIBaseURLPrimaryEnv, ESIBaseURLLegacyEnv))
+}
+
+func IsConfigValidationError(err error) bool {
+	var cfgErr *ConfigValidationError
+	return errors.As(err, &cfgErr)
 }
