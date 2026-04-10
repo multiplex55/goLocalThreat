@@ -15,9 +15,11 @@ import (
 )
 
 type mockESIProvider struct {
-	resolved esi.ResolvedNames
-	idents   []domain.CharacterIdentity
-	err      error
+	resolved  esi.ResolvedNames
+	idents    []domain.CharacterIdentity
+	corps     map[int64]domain.OrganizationMetadata
+	alliances map[int64]domain.OrganizationMetadata
+	err       error
 }
 
 func (m mockESIProvider) ResolveNames(context.Context, []string) (esi.ResolvedNames, error) {
@@ -32,11 +34,11 @@ func (m mockESIProvider) GetCharacters(context.Context, []int64) ([]domain.Chara
 	}
 	return m.idents, nil
 }
-func (m mockESIProvider) GetCorporations(context.Context, []int64) (map[int64]string, error) {
-	return map[int64]string{}, nil
+func (m mockESIProvider) GetCorporations(context.Context, []int64) (map[int64]domain.OrganizationMetadata, error) {
+	return m.corps, nil
 }
-func (m mockESIProvider) GetAlliances(context.Context, []int64) (map[int64]string, error) {
-	return map[int64]string{}, nil
+func (m mockESIProvider) GetAlliances(context.Context, []int64) (map[int64]domain.OrganizationMetadata, error) {
+	return m.alliances, nil
 }
 
 type mockZKillProvider struct {

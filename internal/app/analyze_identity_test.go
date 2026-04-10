@@ -23,12 +23,12 @@ func (stubProvider) GetCharacters(context.Context, []int64) ([]domain.CharacterI
 	return []domain.CharacterIdentity{{CharacterID: 1001, Name: "Alice", CorpID: 555, AllianceID: 777}}, nil
 }
 
-func (stubProvider) GetCorporations(context.Context, []int64) (map[int64]string, error) {
-	return map[int64]string{}, nil
+func (stubProvider) GetCorporations(context.Context, []int64) (map[int64]domain.OrganizationMetadata, error) {
+	return map[int64]domain.OrganizationMetadata{}, nil
 }
 
-func (stubProvider) GetAlliances(context.Context, []int64) (map[int64]string, error) {
-	return map[int64]string{}, nil
+func (stubProvider) GetAlliances(context.Context, []int64) (map[int64]domain.OrganizationMetadata, error) {
+	return map[int64]domain.OrganizationMetadata{}, nil
 }
 
 func TestAnalyzePastedText_UnresolvedNamesBecomeWarnings(t *testing.T) {

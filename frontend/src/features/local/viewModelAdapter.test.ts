@@ -58,4 +58,30 @@ describe('local view-model adapter', () => {
     expect(view.rows[0]?.warnings?.[0]?.message).toContain('Alpha bad timestamp');
     expect(view.diagnosticsSummary.severityCounts.info).toBe(0);
   });
+
+  it('prioritizes enriched names and only falls back to id strings as partial metadata', () => {
+    const enriched = toThreatRowView({
+      identity: {
+        characterId: 77,
+        name: 'Gamma',
+        corpId: 800,
+        corpName: 'Gamma Corp',
+        corpTicker: 'GC',
+        allianceId: 900,
+        allianceName: 'Gamma Alliance',
+        allianceTicker: 'GA',
+      },
+      threat: { threatScore: 55 },
+    }, 0);
+    expect(enriched.corp).toBe('Gamma Corp');
+    expect(enriched.corpTicker).toBe('GC');
+    expect(enriched.orgMetadataPartial).toBe(false);
+
+    const partial = toThreatRowView({
+      identity: { characterId: 78, name: 'Delta', corpId: 801, allianceId: 0 },
+      threat: { threatScore: 20 },
+    }, 0);
+    expect(partial.corp).toBe('Corp #801 (partial)');
+    expect(partial.orgMetadataPartial).toBe(true);
+  });
 });

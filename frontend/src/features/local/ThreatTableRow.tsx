@@ -12,12 +12,14 @@ export interface ThreatTableRowView {
 }
 
 export function buildThreatTableRow(row: ThreatRowView, selected: boolean, compact: boolean): ThreatTableRowView {
+  const corpDisplay = row.corpTicker ? `${row.corp} [${row.corpTicker}]` : row.corp;
+  const allianceDisplay = row.allianceTicker ? `${row.alliance} [${row.allianceTicker}]` : row.alliance;
   return {
     id: row.id,
     selected,
     compact,
     score: buildScoreBadge(row.score),
-    cells: [row.pilotName, row.corp, row.alliance, row.ship, row.lastSeen],
+    cells: [row.pilotName, corpDisplay, allianceDisplay, row.ship, row.lastSeen],
     tags: row.tags.map((tag) => buildTagPill(tag)),
   };
 }

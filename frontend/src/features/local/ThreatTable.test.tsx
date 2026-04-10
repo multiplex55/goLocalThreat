@@ -3,9 +3,9 @@ import { buildThreatTable } from './ThreatTable';
 import type { ThreatRowView } from './types';
 
 const rows: ThreatRowView[] = [
-  { id: '1', pilotName: 'Zed', corp: 'Corp B', alliance: 'A', ship: 'Sabre', score: 20, level: 'low', tags: ['intel'], lastSeen: '10:00', status: 'ready' },
+  { id: '1', pilotName: 'Zed', corp: 'Corp B', corpTicker: 'CB', alliance: 'A', allianceTicker: 'AL', ship: 'Sabre', score: 20, level: 'low', tags: ['intel'], lastSeen: '10:00', status: 'ready' },
   { id: '2', pilotName: 'Amy', corp: 'Corp A', alliance: 'B', ship: 'Drake', score: 95, level: 'critical', tags: ['hot'], lastSeen: '10:01', status: 'ready' },
-  { id: '3', pilotName: 'Nova', corp: 'Corp C', alliance: 'C', ship: 'Vexor', score: 65, level: 'medium', tags: ['watch'], lastSeen: '10:02', status: 'ready' },
+  { id: '3', pilotName: 'Nova', corp: 'Corp C (partial)', alliance: 'C (partial)', orgMetadataPartial: true, ship: 'Vexor', score: 65, level: 'medium', tags: ['watch'], lastSeen: '10:02', status: 'ready' },
 ];
 
 describe('ThreatTable', () => {
@@ -24,5 +24,13 @@ describe('ThreatTable', () => {
     const filtered = buildThreatTable(rows, null, false, { filterText: 'drake' });
     expect(filtered.rowCount).toBe(1);
     expect(filtered.rows[0].cells[0]).toBe('Amy');
+  });
+
+  it('renders corp/alliance ticker badges when available', () => {
+    const table = buildThreatTable(rows, null, false);
+    const byID = Object.fromEntries(table.rows.map((row) => [row.id, row]));
+    expect(byID['3'].cells[1]).toBe('Corp C (partial)');
+    expect(byID['1'].cells[1]).toContain('[CB]');
+    expect(byID['1'].cells[2]).toContain('[AL]');
   });
 });

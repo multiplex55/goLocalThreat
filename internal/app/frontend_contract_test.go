@@ -13,8 +13,10 @@ import (
 func TestFrontendContractAnalyzePastedTextShape(t *testing.T) {
 	svc := app.NewAppServiceWithProviders(
 		mockESIProvider{
-			resolved: esi.ResolvedNames{Characters: map[string]int64{"Alice": 101}},
-			idents:   []domain.CharacterIdentity{{CharacterID: 101, Name: "Alice"}},
+			resolved:  esi.ResolvedNames{Characters: map[string]int64{"Alice": 101}},
+			idents:    []domain.CharacterIdentity{{CharacterID: 101, Name: "Alice", CorpID: 500001, AllianceID: 990001}},
+			corps:     map[int64]domain.OrganizationMetadata{500001: {Name: "Acme Corp", Ticker: "ACME"}},
+			alliances: map[int64]domain.OrganizationMetadata{990001: {Name: "Blue Bloc", Ticker: "BLUE"}},
 		},
 		mockZKillProvider{
 			summaries: map[int64]zkill.SummaryRow{
@@ -81,6 +83,11 @@ func TestFrontendContractAnalyzePastedTextShape(t *testing.T) {
 		t.Fatalf("pilot has unexpected type %T", pilots[0])
 	}
 	mustHaveKeys(t, firstPilot, "identity", "threat", "lastUpdated", "freshness")
+	identity, ok := firstPilot["identity"].(map[string]any)
+	if !ok {
+		t.Fatalf("identity has unexpected type %T", firstPilot["identity"])
+	}
+	mustHaveKeys(t, identity, "characterId", "name", "corpId", "corpName", "corpTicker", "allianceId", "allianceName", "allianceTicker")
 	mustBeString(t, firstPilot, "lastUpdated")
 	pilotFreshness, ok := firstPilot["freshness"].(map[string]any)
 	if !ok {

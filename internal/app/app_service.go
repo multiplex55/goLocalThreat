@@ -38,6 +38,8 @@ type AppService struct {
 	mu       sync.Mutex
 	settings domain.Settings
 	sessions map[string]domain.AnalysisSession
+	corpMeta map[int64]domain.OrganizationMetadata
+	allyMeta map[int64]domain.OrganizationMetadata
 	esi      esi.Provider
 	zkill    ZKillProvider
 	logger   *slog.Logger
@@ -87,6 +89,8 @@ func NewAppServiceWithProviders(esiProvider esi.Provider, zkillProvider ZKillPro
 			},
 		},
 		sessions: make(map[string]domain.AnalysisSession),
+		corpMeta: make(map[int64]domain.OrganizationMetadata),
+		allyMeta: make(map[int64]domain.OrganizationMetadata),
 		esi:      esiProvider,
 		zkill:    zkillProvider,
 		logger:   slog.New(slog.NewJSONHandler(os.Stdout, nil)),
@@ -258,7 +262,82 @@ func (a *AppService) resolveIdentities(ctx context.Context, names []string) ([]d
 			seen[id] = struct{}{}
 		}
 	}
-	return ordered, resolved.Unresolved, warnings
+	enriched, orgWarnings := a.enrichOrganizationMetadata(ctx, ordered)
+	warnings = append(warnings, orgWarnings...)
+	return enriched, resolved.Unresolved, warnings
+}
+
+func (a *AppService) enrichOrganizationMetadata(ctx context.Context, identities []domain.CharacterIdentity) ([]domain.CharacterIdentity, []domain.ProviderWarning) {
+	warnings := make([]domain.ProviderWarning, 0)
+	if len(identities) == 0 {
+		return identities, warnings
+	}
+
+	missingCorpIDs := make([]int64, 0)
+	missingAllianceIDs := make([]int64, 0)
+	corpSeen := map[int64]struct{}{}
+	allySeen := map[int64]struct{}{}
+
+	a.mu.Lock()
+	for _, ident := range identities {
+		if ident.CorpID > 0 {
+			if _, ok := a.corpMeta[ident.CorpID]; !ok {
+				if _, dup := corpSeen[ident.CorpID]; !dup {
+					corpSeen[ident.CorpID] = struct{}{}
+					missingCorpIDs = append(missingCorpIDs, ident.CorpID)
+				}
+			}
+		}
+		if ident.AllianceID > 0 {
+			if _, ok := a.allyMeta[ident.AllianceID]; !ok {
+				if _, dup := allySeen[ident.AllianceID]; !dup {
+					allySeen[ident.AllianceID] = struct{}{}
+					missingAllianceIDs = append(missingAllianceIDs, ident.AllianceID)
+				}
+			}
+		}
+	}
+	a.mu.Unlock()
+
+	if len(missingCorpIDs) > 0 {
+		corps, err := a.esi.GetCorporations(ctx, missingCorpIDs)
+		if err != nil {
+			warnings = append(warnings, newWarning("esi", "CORP_METADATA_PARTIAL", "Some corporation details could not be loaded.", err.Error(), nil))
+		}
+		a.mu.Lock()
+		for id, meta := range corps {
+			a.corpMeta[id] = meta
+		}
+		a.mu.Unlock()
+	}
+
+	if len(missingAllianceIDs) > 0 {
+		alliances, err := a.esi.GetAlliances(ctx, missingAllianceIDs)
+		if err != nil {
+			warnings = append(warnings, newWarning("esi", "ALLIANCE_METADATA_PARTIAL", "Some alliance details could not be loaded.", err.Error(), nil))
+		}
+		a.mu.Lock()
+		for id, meta := range alliances {
+			a.allyMeta[id] = meta
+		}
+		a.mu.Unlock()
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	out := make([]domain.CharacterIdentity, len(identities))
+	for i, ident := range identities {
+		out[i] = ident
+		if corpMeta, ok := a.corpMeta[ident.CorpID]; ok {
+			out[i].CorpName = corpMeta.Name
+			out[i].CorpTicker = corpMeta.Ticker
+		}
+		if allianceMeta, ok := a.allyMeta[ident.AllianceID]; ok {
+			out[i].AllianceName = allianceMeta.Name
+			out[i].AllianceTicker = allianceMeta.Ticker
+		}
+	}
+	return out, warnings
 }
 
 func (a *AppService) enrichPilots(ctx context.Context, identities []domain.CharacterIdentity, explicitRefresh bool, selectedPilotID int64, analysisID string) ([]domain.PilotThreatRecord, []domain.ProviderWarning, enrichResult) {

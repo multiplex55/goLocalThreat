@@ -21,7 +21,11 @@ interface PilotDTOShape {
     characterId?: number;
     name?: string;
     corpId?: number;
+    corpName?: string;
+    corpTicker?: string;
     allianceId?: number;
+    allianceName?: string;
+    allianceTicker?: string;
   };
   freshness?: {
     dataAsOf?: string;
@@ -31,16 +35,28 @@ interface PilotDTOShape {
   };
 }
 
+function hasValue(value?: string): boolean {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
 export function toThreatRowView(dto: unknown, index: number): ThreatRowView {
   const pilot = dto as PilotDTOShape;
   const score = Math.max(0, Math.min(100, Number(pilot.score ?? pilot.threatScore ?? 0)));
   const level = score >= 90 ? 'critical' : score >= 70 ? 'high' : score >= 40 ? 'medium' : 'low';
+  const corpName = pilot.corp ?? pilot.corporationName ?? pilot.identity?.corpName;
+  const allianceName = pilot.alliance ?? pilot.allianceName ?? pilot.identity?.allianceName;
+  const corpFallback = pilot.identity?.corpId ? `Corp #${pilot.identity.corpId} (partial)` : 'Unknown corp (partial)';
+  const allianceFallback = pilot.identity?.allianceId ? `Alliance #${pilot.identity.allianceId} (partial)` : 'None (partial)';
+  const orgMetadataPartial = !hasValue(corpName) || (!hasValue(allianceName) && Boolean(pilot.identity?.allianceId));
 
   return {
     id: pilot.id ?? String(pilot.characterId ?? index),
     pilotName: pilot.pilotName ?? pilot.name ?? pilot.identity?.name ?? `Unknown #${index + 1}`,
-    corp: pilot.corp ?? pilot.corporationName ?? (pilot.identity?.corpId ? `Corp #${pilot.identity.corpId}` : 'Unknown corp'),
-    alliance: pilot.alliance ?? pilot.allianceName ?? (pilot.identity?.allianceId ? `Alliance #${pilot.identity.allianceId}` : 'None'),
+    corp: hasValue(corpName) ? corpName! : corpFallback,
+    corpTicker: pilot.identity?.corpTicker,
+    alliance: hasValue(allianceName) ? allianceName! : allianceFallback,
+    allianceTicker: pilot.identity?.allianceTicker,
+    orgMetadataPartial,
     ship: pilot.ship ?? pilot.shipTypeName ?? 'Unknown ship',
     score,
     level,
@@ -76,8 +92,6 @@ export function toLocalScreenViewModel(dto: AppService.AnalysisSessionDTO): Loca
       characterId: p.identity.characterId,
       pilotName: p.identity.name,
       threatScore: p.threat.threatScore,
-      corp: p.identity.corpId ? `Corp #${p.identity.corpId}` : undefined,
-      alliance: p.identity.allianceId ? `Alliance #${p.identity.allianceId}` : undefined,
       lastSeen: p.freshness.dataAsOf,
       identity: p.identity,
       freshness: p.freshness,
