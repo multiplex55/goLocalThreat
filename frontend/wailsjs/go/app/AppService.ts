@@ -42,6 +42,7 @@ export interface AnalysisSessionDTO {
   source: ParseSourceDTO;
   pilots: PilotThreatDTO[];
   warnings: ParseWarningDTO[];
+  unresolvedNames?: string[];
 }
 
 export interface BuildInfoDTO {

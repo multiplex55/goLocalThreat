@@ -20,7 +20,13 @@ export function LocalFeature({
   onSelectPilot,
 }: LocalFeatureProps) {
   const pilots = analyzeState.data?.pilots ?? [];
+  const diagnostics = analyzeState.data?.diagnostics;
   const selectedPilot = pilots.find((pilot) => pilot.id === selectedPilotId) ?? pilots[0] ?? null;
+  const unresolvedNames = diagnostics?.unresolvedNames ?? [];
+  const unresolvedOverflowThreshold = 5;
+  const hasLongUnresolvedList = unresolvedNames.length > unresolvedOverflowThreshold;
+  const emptyUnresolvedState = analyzeState.status === 'success' && (diagnostics?.candidateNamesCount ?? 0) > 0 && pilots.length === 0;
+  const showNoThreatsFound = analyzeState.status === 'success' && pilots.length === 0 && !emptyUnresolvedState;
 
   return (
     <div data-testid="local-feature">
@@ -50,9 +56,59 @@ export function LocalFeature({
         </p>
       )}
 
+      {analyzeState.status === 'success' && diagnostics && (
+        <section data-testid="diagnostics">
+          <h3>Diagnostics</h3>
+          <p>
+            Parsed {diagnostics.candidateNamesCount} candidate names · resolved {diagnostics.resolvedCount}
+          </p>
+          {diagnostics.invalidLines > 0 && (
+            <p data-testid="invalid-lines-summary">Invalid lines detected: {diagnostics.invalidLines}</p>
+          )}
+          {diagnostics.warnings.length > 0 && (
+            <div data-testid="provider-warnings">
+              <p>Provider warnings:</p>
+              <ul>
+                {diagnostics.warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {unresolvedNames.length > 0 && (
+            <div data-testid="unresolved-names">
+              {hasLongUnresolvedList ? (
+                <details>
+                  <summary>Unresolved names: {unresolvedNames.length}</summary>
+                  <ul>
+                    {unresolvedNames.map((name) => (
+                      <li key={name}>{name}</li>
+                    ))}
+                  </ul>
+                </details>
+              ) : (
+                <>
+                  <p>Unresolved names: {unresolvedNames.length}</p>
+                  <ul>
+                    {unresolvedNames.map((name) => (
+                      <li key={name}>{name}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
       <section>
         <h3>Threat table</h3>
-        {analyzeState.status === 'success' && pilots.length === 0 && <p data-testid="empty-state">No threats found.</p>}
+        {emptyUnresolvedState && (
+          <p data-testid="unresolved-empty-state">
+            Parsed {diagnostics?.candidateNamesCount ?? 0} names, but none could be resolved through ESI.
+          </p>
+        )}
+        {showNoThreatsFound && <p data-testid="empty-state">No threats found.</p>}
         <ul data-testid="threat-table">
           {pilots.map((pilot) => (
             <li key={pilot.id}>

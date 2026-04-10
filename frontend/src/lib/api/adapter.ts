@@ -41,14 +41,24 @@ function toSettingsDTO(model: SettingsViewModel): AppService.SettingsDTO {
 }
 
 export function toAnalysisSessionView(dto: AppService.AnalysisSessionDTO): AnalysisSessionView {
+  const unresolvedNames = dto.unresolvedNames ?? [];
+  const candidateNamesCount = dto.source.candidateNames.length;
+  const resolvedCount = dto.pilots.length;
   return {
     sessionId: dto.sessionId,
     createdAt: dto.createdAt,
     pilotCount: dto.pilots.length,
     warningCount: dto.warnings.length,
     sourceTextLength: dto.source.rawText.length,
+    diagnostics: {
+      candidateNamesCount,
+      resolvedCount,
+      unresolvedNames,
+      invalidLines: dto.source.invalidLines.length,
+      warnings: dto.warnings.map((warning) => `${warning.provider}: ${warning.message}`),
+    },
     parseSummary: {
-      candidateCount: dto.source.candidateNames.length,
+      candidateCount: candidateNamesCount,
       invalidLineCount: dto.source.invalidLines.length,
       duplicateRemovalCount: dto.source.removedDuplicates,
       warningCount: dto.source.warnings.length,
