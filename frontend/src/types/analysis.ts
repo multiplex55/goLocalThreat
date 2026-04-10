@@ -11,6 +11,17 @@ export interface ParseSummaryView {
   warnings: ParseWarningView[];
 }
 
+export interface PilotThreatView {
+  id: string;
+  name: string;
+  corporation: string;
+  alliance: string;
+  score: number;
+  band: string;
+  reasons: string[];
+  confidence: number;
+}
+
 export interface AnalysisSessionView {
   sessionId: string;
   createdAt: string;
@@ -18,4 +29,5 @@ export interface AnalysisSessionView {
   warningCount: number;
   sourceTextLength: number;
   parseSummary: ParseSummaryView;
+  pilots: PilotThreatView[];
 }
