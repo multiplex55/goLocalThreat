@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 
@@ -56,10 +55,7 @@ func (c *StatsClient) fetchSummary(ctx context.Context, characterID int64) (Summ
 	if payload, ok := c.cache.get("stats", cacheKey); ok {
 		return parseSummaryRow(payload)
 	}
-	target, err := url.JoinPath(c.baseURL, "/stats/character", cacheKey)
-	if err != nil {
-		return SummaryRow{}, err
-	}
+	target := fmt.Sprintf("%s/api/stats/characterID/%s/", c.baseURL, cacheKey)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return SummaryRow{}, err
