@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { buildDetailPanel } from './DetailPanel';
 import { buildThreatTable } from './ThreatTable';
 import type { AnalyzeState } from './analyzeState';
 import type { ThreatRowView, ThreatTableColumn } from './types';
+import { dehydrateWorkspacePrefs, hydrateWorkspacePrefs } from './workspacePrefs';
 
 export interface LocalScreenProps {
   pastedText: string;
@@ -28,39 +29,39 @@ function toThreatRows(analyzeState: AnalyzeState): ThreatRowView[] {
       ? ['Unknown due to partial killmail timestamps']
       : [];
 
-    return ({
-    id: pilot.id,
-    pilotName: pilot.name,
-    corp: pilot.corporation,
-    alliance: pilot.alliance,
-    mainShip: 'Unknown ship',
-    mainRecentShip: 'Unknown ship',
-    score: pilot.score,
-    threatBand: pilot.band === 'critical' || pilot.band === 'high' || pilot.band === 'medium' || pilot.band === 'low' ? pilot.band : 'low',
-    confidence: pilot.confidence,
-    reasonBreakdown,
-    kills: 0,
-    losses: 0,
-    dangerPercent: 0,
-    soloPercent: 0,
-    avgGangSize: 0,
-    soloGangTendency: 'Unknown',
-    lastKill: 'Unknown',
-    lastLoss: 'Unknown',
-    lastActivitySummary: 'No recent kill/loss timestamps available',
-    freshness: confidencePercent >= 70 ? 'Recently Active' : 'Stale Data',
-    tags: pilot.reasons,
-    notes: '',
-    lastSeen: `confidence ${confidencePercent}%`,
-    status: analyzeState.status === 'loading' ? 'loading' : 'ready',
-    dataCompletenessMarkers,
-    warnings: warningsByPilotId[pilot.id]?.map((warning) => ({
-      provider: warning.provider,
-      severity: warning.severity,
-      userVisible: warning.userVisible,
-      message: warning.message,
-    })) ?? [],
-  });
+    return {
+      id: pilot.id,
+      pilotName: pilot.name,
+      corp: pilot.corporation,
+      alliance: pilot.alliance,
+      mainShip: 'Unknown ship',
+      mainRecentShip: 'Unknown ship',
+      score: pilot.score,
+      threatBand: pilot.band === 'critical' || pilot.band === 'high' || pilot.band === 'medium' || pilot.band === 'low' ? pilot.band : 'low',
+      confidence: pilot.confidence,
+      reasonBreakdown,
+      kills: 0,
+      losses: 0,
+      dangerPercent: 0,
+      soloPercent: 0,
+      avgGangSize: 0,
+      soloGangTendency: 'Unknown',
+      lastKill: 'Unknown',
+      lastLoss: 'Unknown',
+      lastActivitySummary: 'No recent kill/loss timestamps available',
+      freshness: confidencePercent >= 70 ? 'Recently Active' : 'Stale Data',
+      tags: pilot.reasons,
+      notes: '',
+      lastSeen: `confidence ${confidencePercent}%`,
+      status: analyzeState.status === 'loading' ? 'loading' : 'ready',
+      dataCompletenessMarkers,
+      warnings: warningsByPilotId[pilot.id]?.map((warning) => ({
+        provider: warning.provider,
+        severity: warning.severity,
+        userVisible: warning.userVisible,
+        message: warning.message,
+      })) ?? [],
+    };
   })
     .map((row, index) => ({ ...row, id: row.id || String(index) }));
 }
@@ -70,6 +71,12 @@ function nextSelectionIndex(currentIndex: number, rowCount: number, key: 'ArrowU
   if (currentIndex < 0) return 0;
   if (key === 'ArrowDown') return Math.min(rowCount - 1, currentIndex + 1);
   return Math.max(0, currentIndex - 1);
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tagName = target.tagName.toLowerCase();
+  return tagName === 'textarea' || tagName === 'input' || target.isContentEditable;
 }
 
 export function LocalScreen({
@@ -83,22 +90,60 @@ export function LocalScreen({
   onSettings,
   useLocalIntelV2Layout = false,
 }: LocalScreenProps) {
-  const rows = useMemo(() => toThreatRows(analyzeState), [analyzeState]);
+  const workspacePrefs = useMemo(() => hydrateWorkspacePrefs(), []);
+  const baseRows = useMemo(() => toThreatRows(analyzeState), [analyzeState]);
   const diagnostics = analyzeState.data?.diagnostics;
   const unresolvedNames = diagnostics?.unresolvedNames ?? [];
   const globalWarnings = diagnostics?.globalWarnings ?? [];
 
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<ThreatTableColumn>('score');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [sortBy, setSortBy] = useState<ThreatTableColumn>(workspacePrefs.table.sortBy);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(workspacePrefs.table.sortDirection);
   const [filterText, setFilterText] = useState('');
-  const [compactMode, setCompactMode] = useState(false);
-  const [visibleColumns, setVisibleColumns] = useState<Record<ThreatTableColumn, boolean>>({
-    pilotName: true, corp: true, alliance: true, score: true, threatBand: true, kills: true, losses: true, dangerPercent: true, soloPercent: true,
-    avgGangSize: true, lastKill: true, lastLoss: true, mainShip: true, tags: true, notes: true,
-  });
+  const [compactMode, setCompactMode] = useState(workspacePrefs.compactDensity);
+  const [visibleColumns, setVisibleColumns] = useState<Record<ThreatTableColumn, boolean>>(workspacePrefs.table.columnVisibility);
+  const [columnWidths] = useState(workspacePrefs.table.columnWidths);
+  const [panelSizes] = useState(workspacePrefs.layout.panelSizes);
+  const [splitPositions] = useState(workspacePrefs.layout.splitPositions);
+  const [pinnedRowIds, setPinnedRowIds] = useState<Set<string>>(new Set());
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const pasteInputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const rows = useMemo(() => baseRows.map((row) => {
+    if (!pinnedRowIds.has(row.id)) return row;
+    return {
+      ...row,
+      tags: row.tags.includes('Pinned') ? row.tags : [...row.tags, 'Pinned'],
+    };
+  }), [baseRows, pinnedRowIds]);
 
   const table = useMemo(() => buildThreatTable(rows, selectedRowId, compactMode, { sortBy, sortDirection, filterText, visibleColumns }), [rows, selectedRowId, compactMode, sortBy, sortDirection, filterText, visibleColumns]);
+
+  useEffect(() => {
+    dehydrateWorkspacePrefs({
+      ...workspacePrefs,
+      lastPastedInput: pastedText,
+      compactDensity: compactMode,
+      table: {
+        ...workspacePrefs.table,
+        sortBy,
+        sortDirection,
+        columnVisibility: visibleColumns,
+        columnWidths,
+      },
+      layout: {
+        ...workspacePrefs.layout,
+        panelSizes,
+        splitPositions,
+      },
+    });
+  }, [columnWidths, compactMode, panelSizes, pastedText, sortBy, sortDirection, splitPositions, visibleColumns, workspacePrefs]);
+
+  useEffect(() => {
+    if (!actionMessage) return;
+    const timeoutId = window.setTimeout(() => setActionMessage(null), 1800);
+    return () => window.clearTimeout(timeoutId);
+  }, [actionMessage]);
 
   useEffect(() => {
     if (!rows.length) {
@@ -112,11 +157,15 @@ export function LocalScreen({
   const detail = useMemo(() => buildDetailPanel(selectedRow), [selectedRow]);
 
   const copyName = useCallback(async (pilotName: string | null) => {
-    if (!pilotName) return;
+    if (!pilotName) {
+      setActionMessage('No selected pilot to copy.');
+      return;
+    }
     onCopySelected?.(pilotName);
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       await navigator.clipboard.writeText(pilotName);
     }
+    setActionMessage(`Copied ${pilotName}.`);
   }, [onCopySelected]);
 
   const copyAllNames = useCallback(async () => {
@@ -125,12 +174,37 @@ export function LocalScreen({
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       await navigator.clipboard.writeText(names.join('\n'));
     }
+    setActionMessage(`Copied ${names.length} pilot name${names.length === 1 ? '' : 's'}.`);
   }, [onCopyAll, rows]);
+
+  const refreshSelected = useCallback(() => {
+    if (!selectedRow?.id) {
+      setActionMessage('No selected pilot to refresh.');
+      onRefreshSelected?.(null);
+      return;
+    }
+    onRefreshSelected?.(selectedRow.id);
+    setActionMessage(`Refreshing ${selectedRow.pilotName}...`);
+  }, [onRefreshSelected, selectedRow]);
 
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Enter') {
       event.preventDefault();
       onAnalyze();
+      return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v' && !isEditableTarget(event.target)) {
+      event.preventDefault();
+      pasteInputRef.current?.focus();
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
+        void navigator.clipboard.readText().then((clipboardText) => {
+          if (clipboardText) {
+            const separator = pastedText.trim() ? '\n' : '';
+            onPasteChange(`${pastedText}${separator}${clipboardText}`);
+          }
+        });
+      }
       return;
     }
 
@@ -145,7 +219,7 @@ export function LocalScreen({
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
       void copyName(selectedRow?.pilotName ?? null);
     }
-  }, [copyName, onAnalyze, selectedRow?.pilotName, selectedRowId, table.rows]);
+  }, [copyName, onAnalyze, onPasteChange, pastedText, selectedRow?.pilotName, selectedRowId, table.rows]);
 
   if (!useLocalIntelV2Layout) {
     return <div data-testid="local-screen-disabled">Local intel v2 layout is disabled.</div>;
@@ -155,16 +229,17 @@ export function LocalScreen({
     <section data-testid="local-screen" tabIndex={0} onKeyDown={onKeyDown} aria-label="Local intel workspace">
       <header data-testid="local-top-toolbar">
         <button type="button" onClick={onAnalyze} disabled={analyzeState.status === 'loading'}>Analyze</button>
-        <button type="button" onClick={() => onRefreshSelected?.(selectedRow?.id ?? null)} disabled={!selectedRow}>Refresh Selected</button>
+        <button type="button" onClick={refreshSelected}>Refresh Selected</button>
         <button type="button" onClick={() => void copyName(selectedRow?.pilotName ?? null)} disabled={!selectedRow}>Copy Selected</button>
         <button type="button" onClick={() => void copyAllNames()} disabled={!rows.length}>Copy All</button>
         <button type="button" onClick={onSettings}>Settings</button>
+        <span role="status" aria-live="polite" data-testid="action-feedback">{actionMessage}</span>
       </header>
 
-      <div data-testid="local-layout-grid">
+      <div data-testid="local-layout-grid" style={{ gridTemplateColumns: `${panelSizes.left}fr ${panelSizes.center}fr ${panelSizes.right}fr` }}>
         <aside data-testid="local-left-panel">
           <label htmlFor="paste-input">Pasted roster</label>
-          <textarea id="paste-input" data-testid="paste-textbox" value={pastedText} rows={8} onChange={(event) => onPasteChange(event.target.value)} />
+          <textarea ref={pasteInputRef} id="paste-input" data-testid="paste-textbox" value={pastedText} rows={8} onChange={(event) => onPasteChange(event.target.value)} />
           <p data-testid="parse-summary">Parsed {diagnostics?.candidateNamesCount ?? 0} candidates · resolved {diagnostics?.resolvedCount ?? 0}</p>
         </aside>
 
@@ -179,7 +254,7 @@ export function LocalScreen({
             <thead>
               <tr>
                 {table.headers.filter((h) => h.visible).map((h) => (
-                  <th key={h.column}>
+                  <th key={h.column} style={{ width: columnWidths[h.column] ? `${columnWidths[h.column]}px` : undefined }}>
                     <button type="button" onClick={() => {
                       if (sortBy === h.column) {
                         setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -194,8 +269,21 @@ export function LocalScreen({
             </thead>
             <tbody>
               {table.rows.map((tableRow) => (
-                <tr key={tableRow.id} data-selected={tableRow.selected || undefined} onClick={() => setSelectedRowId(tableRow.id)}>
-                  {table.headers.filter((h) => h.visible).map((h) => <td key={h.column}>{Array.isArray(tableRow.row[h.column]) ? (tableRow.row[h.column] as string[]).join(', ') : String(tableRow.row[h.column])}</td>)}
+                <tr
+                  key={tableRow.id}
+                  data-selected={tableRow.selected || undefined}
+                  onClick={() => setSelectedRowId(tableRow.id)}
+                  onDoubleClick={() => setPinnedRowIds((current) => {
+                    const next = new Set(current);
+                    if (next.has(tableRow.id)) {
+                      next.delete(tableRow.id);
+                    } else {
+                      next.add(tableRow.id);
+                    }
+                    return next;
+                  })}
+                >
+                  {table.headers.filter((h) => h.visible).map((h) => <td key={h.column}>{h.column === 'pilotName' && pinnedRowIds.has(tableRow.id) ? '📌 ' : ''}{Array.isArray(tableRow.row[h.column]) ? (tableRow.row[h.column] as string[]).join(', ') : String(tableRow.row[h.column])}</td>)}
                 </tr>
               ))}
             </tbody>
@@ -239,7 +327,7 @@ export function LocalScreen({
               .join(', ') || 'none'}
           </p>
         </details>
-        <span>Status: {analyzeState.status} · pilots: {rows.length} · unresolved: {unresolvedNames.length}</span>
+        <span>Status: {analyzeState.status} · pilots: {rows.length} · unresolved: {unresolvedNames.length} · split {splitPositions.vertical}/{splitPositions.horizontal}</span>
       </footer>
     </section>
   );

@@ -1,16 +1,18 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import './App.css';
 import { HistoryFeature } from './features/history/HistoryFeature';
 import { LocalScreen } from './features/local/LocalScreen';
 import { initialAnalyzeState, mapAnalyzeError, reduceAnalyzeState } from './features/local/analyzeState';
 import { SettingsFeature } from './features/settings/SettingsFeature';
+import { hydrateWorkspacePrefs, dehydrateWorkspacePrefs } from './features/local/workspacePrefs';
 import { analyzePastedText } from './lib/api';
 
 type AppTab = 'local' | 'history' | 'settings';
 
 function App() {
   const [tab, setTab] = useState<AppTab>('local');
-  const [pastedText, setPastedText] = useState('');
+  const workspacePrefs = useMemo(() => hydrateWorkspacePrefs(), []);
+  const [pastedText, setPastedText] = useState(workspacePrefs.lastPastedInput);
   const [analyzeState, setAnalyzeState] = useState(initialAnalyzeState);
   const [historyQuery, setHistoryQuery] = useState('');
   const [settingsNote, setSettingsNote] = useState('');
@@ -43,7 +45,11 @@ function App() {
       <LocalScreen
         pastedText={pastedText}
         analyzeState={analyzeState}
-        onPasteChange={setPastedText}
+        onPasteChange={(text) => {
+          setPastedText(text);
+          const current = hydrateWorkspacePrefs();
+          dehydrateWorkspacePrefs({ ...current, lastPastedInput: text });
+        }}
         onAnalyze={runAnalyze}
         useLocalIntelV2Layout
       />
