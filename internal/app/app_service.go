@@ -40,6 +40,14 @@ type AppService struct {
 	esi      esi.Provider
 	zkill    ZKillProvider
 	logger   *slog.Logger
+	ctx      context.Context
+	build    BuildInfo
+}
+
+type BuildInfo struct {
+	Version string `json:"version"`
+	Commit  string `json:"commit"`
+	Date    string `json:"date"`
 }
 
 func NewAppService() *AppService {
@@ -81,7 +89,36 @@ func NewAppServiceWithProviders(esiProvider esi.Provider, zkillProvider ZKillPro
 		esi:      esiProvider,
 		zkill:    zkillProvider,
 		logger:   slog.New(slog.NewJSONHandler(os.Stdout, nil)),
+		ctx:      context.Background(),
+		build:    BuildInfo{Version: "dev", Commit: "unknown", Date: "unknown"},
 	}
+}
+
+func (a *AppService) Startup(ctx context.Context) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	a.mu.Lock()
+	a.ctx = ctx
+	a.mu.Unlock()
+}
+
+func (a *AppService) Shutdown(context.Context) {
+	a.mu.Lock()
+	a.ctx = nil
+	a.mu.Unlock()
+}
+
+func (a *AppService) SetBuildInfo(info BuildInfo) {
+	a.mu.Lock()
+	a.build = info
+	a.mu.Unlock()
+}
+
+func (a *AppService) GetBuildInfo() BuildInfo {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.build
 }
 
 func (a *AppService) AnalyzePastedText(text string) (domain.AnalysisSession, error) {
