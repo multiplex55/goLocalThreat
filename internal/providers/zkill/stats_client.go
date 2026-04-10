@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"golocalthreat/internal/cache"
@@ -30,7 +29,7 @@ type StatsClient struct {
 
 func NewStatsClient(baseURL string) *StatsClient {
 	return &StatsClient{
-		baseURL:   strings.TrimRight(baseURL, "/"),
+		baseURL:   normalizeBaseURL(baseURL),
 		http:      &http.Client{Timeout: 5 * time.Second},
 		throttle:  NewThrottler(120 * time.Millisecond),
 		cache:     newEndpointCache(),

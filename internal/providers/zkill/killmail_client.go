@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"golocalthreat/internal/cache"
@@ -30,7 +29,7 @@ type KillmailClient struct {
 
 func NewKillmailClient(baseURL string) *KillmailClient {
 	return &KillmailClient{
-		baseURL:   strings.TrimRight(baseURL, "/"),
+		baseURL:   normalizeBaseURL(baseURL),
 		http:      &http.Client{Timeout: 5 * time.Second},
 		throttle:  NewThrottler(200 * time.Millisecond),
 		cache:     newEndpointCache(),
