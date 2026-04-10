@@ -4,30 +4,58 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"os"
+	"sort"
 	"sync"
 	"time"
 
 	"golocalthreat/internal/domain"
 	"golocalthreat/internal/parser"
 	"golocalthreat/internal/providers/esi"
+	"golocalthreat/internal/providers/zkill"
 	"golocalthreat/internal/scoring"
 	"golocalthreat/internal/store"
 )
+
+type ZKillProvider interface {
+	FetchSummary(ctx context.Context, characterID int64) (zkill.SummaryRow, error)
+	FetchRecentByCharacter(ctx context.Context, characterID int64, limit int) ([]zkill.Killmail, error)
+}
+
+type noopZKillProvider struct{}
+
+func (noopZKillProvider) FetchSummary(context.Context, int64) (zkill.SummaryRow, error) {
+	return zkill.SummaryRow{}, nil
+}
+
+func (noopZKillProvider) FetchRecentByCharacter(context.Context, int64, int) ([]zkill.Killmail, error) {
+	return nil, nil
+}
 
 type AppService struct {
 	mu       sync.Mutex
 	settings domain.Settings
 	sessions map[string]domain.AnalysisSession
 	esi      esi.Provider
+	zkill    ZKillProvider
+	logger   *slog.Logger
 }
 
 func NewAppService() *AppService {
-	return NewAppServiceWithProvider(esi.NoopProvider{})
+	return NewAppServiceWithProviders(esi.NoopProvider{}, noopZKillProvider{})
 }
 
 func NewAppServiceWithProvider(provider esi.Provider) *AppService {
-	if provider == nil {
-		provider = esi.NoopProvider{}
+	return NewAppServiceWithProviders(provider, noopZKillProvider{})
+}
+
+func NewAppServiceWithProviders(esiProvider esi.Provider, zkillProvider ZKillProvider) *AppService {
+	if esiProvider == nil {
+		esiProvider = esi.NoopProvider{}
+	}
+	if zkillProvider == nil {
+		zkillProvider = noopZKillProvider{}
 	}
 	return &AppService{
 		settings: domain.Settings{
@@ -50,22 +78,48 @@ func NewAppServiceWithProvider(provider esi.Provider) *AppService {
 			},
 		},
 		sessions: make(map[string]domain.AnalysisSession),
-		esi:      provider,
+		esi:      esiProvider,
+		zkill:    zkillProvider,
+		logger:   slog.New(slog.NewJSONHandler(os.Stdout, nil)),
 	}
 }
 
 func (a *AppService) AnalyzePastedText(text string) (domain.AnalysisSession, error) {
+	ctx := context.Background()
 	now := time.Now().UTC()
+	start := now
+	stageDurations := map[string]int64{}
+	warnings := make([]domain.ProviderWarning, 0)
+	unresolvedNames := make([]string, 0)
+
+	parseStart := time.Now()
 	parsed := parser.NewOrchestrator().Parse(text)
+	stageDurations["parse_ms"] = time.Since(parseStart).Milliseconds()
+	a.logger.Info("analyze stage complete", "stage", "parse", "duration_ms", stageDurations["parse_ms"], "candidates", len(parsed.Candidates), "invalid", len(parsed.InvalidLines))
+
 	parserWarnings := make([]domain.ProviderWarning, 0, len(parsed.Warnings))
 	for _, warning := range parsed.Warnings {
 		parserWarnings = append(parserWarnings, domain.ProviderWarning{Provider: "parser", Code: warning, Message: warning})
 	}
+	warnings = append(warnings, parserWarnings...)
+
 	invalidLines := make([]domain.InvalidLine, 0, len(parsed.InvalidLines))
 	for _, item := range parsed.InvalidLines {
 		invalidLines = append(invalidLines, domain.InvalidLine{Line: item.Line, ReasonCode: item.ReasonCode})
 	}
-	identities, identityWarnings := a.resolveIdentities(parsed.Candidates)
+
+	resolveStart := time.Now()
+	identities, unresolved, identityWarnings := a.resolveIdentities(ctx, parsed.Candidates)
+	stageDurations["resolve_ms"] = time.Since(resolveStart).Milliseconds()
+	warnings = append(warnings, identityWarnings...)
+	unresolvedNames = append(unresolvedNames, unresolved...)
+	a.logger.Info("analyze stage complete", "stage", "resolve", "duration_ms", stageDurations["resolve_ms"], "resolved", len(identities), "unresolved", len(unresolved))
+
+	pilots, enrichWarnings, freshness := a.enrichPilots(ctx, identities, false, 0)
+	warnings = append(warnings, enrichWarnings...)
+	for k, v := range freshness.StageDurations {
+		stageDurations[k] = v
+	}
 
 	s := domain.AnalysisSession{
 		SessionID: fmt.Sprintf("session-%d", now.UnixNano()),
@@ -84,15 +138,16 @@ func (a *AppService) AnalyzePastedText(text string) (domain.AnalysisSession, err
 			SuspiciousArtifacts: parsed.SuspiciousArtifacts,
 			ParsedAt:            now,
 		},
-		Pilots:   []domain.PilotThreatRecord{},
-		Settings: a.settings,
-		Warnings: identityWarnings,
-		Freshness: domain.FetchFreshness{
-			Source:   "esi",
-			DataAsOf: now,
-			IsStale:  false,
-		},
+		Pilots:                 pilots,
+		Settings:               a.settings,
+		Warnings:               warnings,
+		Freshness:              freshness.Freshness,
+		DurationMetrics:        stageDurations,
+		WarningCount:           len(warnings),
+		UnresolvedNames:        unresolvedNames,
+		ProviderWarningSummary: summarizeWarnings(warnings),
 	}
+	stageDurations["total_ms"] = time.Since(start).Milliseconds()
 	if err := s.Validate(); err != nil {
 		return domain.AnalysisSession{}, err
 	}
@@ -100,23 +155,28 @@ func (a *AppService) AnalyzePastedText(text string) (domain.AnalysisSession, err
 	a.mu.Lock()
 	a.sessions[s.SessionID] = s
 	a.mu.Unlock()
-
+	a.logger.Info("analyze completed", "session_id", s.SessionID, "duration_ms", stageDurations["total_ms"], "warnings", len(warnings), "pilots", len(pilots))
 	return s, nil
 }
 
-func (a *AppService) resolveIdentities(names []string) ([]domain.CharacterIdentity, []domain.ProviderWarning) {
+type enrichResult struct {
+	Freshness      domain.FetchFreshness
+	StageDurations map[string]int64
+}
+
+func (a *AppService) resolveIdentities(ctx context.Context, names []string) ([]domain.CharacterIdentity, []string, []domain.ProviderWarning) {
 	if len(names) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
-	resolved, err := a.esi.ResolveNames(context.Background(), names)
+	resolved, err := a.esi.ResolveNames(ctx, names)
 	warnings := make([]domain.ProviderWarning, 0)
 	if err != nil {
 		if errors.Is(err, domain.ErrRateLimited) {
 			warnings = append(warnings, domain.ProviderWarning{Provider: "esi", Code: "RATE_LIMITED", Message: err.Error()})
-			return nil, warnings
+			return nil, nil, warnings
 		}
 		warnings = append(warnings, domain.ProviderWarning{Provider: "esi", Code: "RESOLVE_FAILED", Message: err.Error()})
-		return nil, warnings
+		return nil, nil, warnings
 	}
 	for _, unresolved := range resolved.Unresolved {
 		warnings = append(warnings, domain.ProviderWarning{Provider: "esi", Code: "UNRESOLVED_NAME", Message: unresolved})
@@ -125,37 +185,229 @@ func (a *AppService) resolveIdentities(names []string) ([]domain.CharacterIdenti
 	for _, id := range resolved.Characters {
 		ids = append(ids, id)
 	}
-	identities, err := a.esi.GetCharacters(context.Background(), ids)
+	if len(ids) == 0 {
+		return nil, resolved.Unresolved, warnings
+	}
+	identities, err := a.esi.GetCharacters(ctx, ids)
 	if err != nil {
 		warnings = append(warnings, domain.ProviderWarning{Provider: "esi", Code: "IDENTITY_PARTIAL", Message: err.Error()})
 	}
-	return identities, warnings
+	byID := make(map[int64]domain.CharacterIdentity, len(identities))
+	for _, id := range identities {
+		byID[id.CharacterID] = id
+	}
+	ordered := make([]domain.CharacterIdentity, 0, len(identities))
+	seen := map[int64]struct{}{}
+	for _, name := range names {
+		id, ok := resolved.Characters[name]
+		if !ok {
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		if ident, ok := byID[id]; ok {
+			ordered = append(ordered, ident)
+			seen[id] = struct{}{}
+		}
+	}
+	return ordered, resolved.Unresolved, warnings
+}
+
+func (a *AppService) enrichPilots(ctx context.Context, identities []domain.CharacterIdentity, explicitRefresh bool, selectedPilotID int64) ([]domain.PilotThreatRecord, []domain.ProviderWarning, enrichResult) {
+	warnings := make([]domain.ProviderWarning, 0)
+	stageDurations := map[string]int64{}
+	now := time.Now().UTC()
+	pilots := make([]domain.PilotThreatRecord, len(identities))
+	for i, ident := range identities {
+		pilots[i] = domain.PilotThreatRecord{
+			Identity:    ident,
+			Threat:      zkill.SummaryRow{}.ToThreatBreakdown(),
+			LastUpdated: now,
+			Freshness:   domain.FetchFreshness{Source: "zkill", DataAsOf: now, IsStale: true},
+		}
+	}
+	statsStart := time.Now()
+	summaries, statWarnings := a.fetchSummaryRows(ctx, identities)
+	warnings = append(warnings, statWarnings...)
+	for i := range pilots {
+		if row, ok := summaries[pilots[i].Identity.CharacterID]; ok {
+			pilots[i].Threat = row.ToThreatBreakdown()
+			dataAsOf := now
+			if !row.LastActivity.IsZero() {
+				dataAsOf = row.LastActivity.UTC()
+			}
+			pilots[i].Freshness = domain.FetchFreshness{Source: "zkill", DataAsOf: dataAsOf, IsStale: isStale(dataAsOf, a.settings.RefreshInterval)}
+		}
+	}
+	stageDurations["zkill_stats_ms"] = time.Since(statsStart).Milliseconds()
+	a.logger.Info("analyze stage complete", "stage", "zkill_stats", "duration_ms", stageDurations["zkill_stats_ms"], "records", len(summaries), "warnings", len(statWarnings))
+
+	detailsStart := time.Now()
+	targetIDs := SelectDetailFetchTargets(pilots, 3, selectedPilotID, explicitRefresh)
+	detailWarnings := a.fetchDetails(ctx, pilots, targetIDs)
+	warnings = append(warnings, detailWarnings...)
+	stageDurations["zkill_detail_ms"] = time.Since(detailsStart).Milliseconds()
+	a.logger.Info("analyze stage complete", "stage", "zkill_detail", "duration_ms", stageDurations["zkill_detail_ms"], "targets", len(targetIDs), "warnings", len(detailWarnings))
+
+	freshness := domain.FetchFreshness{Source: "composite", DataAsOf: now, IsStale: false}
+	for _, p := range pilots {
+		if p.Freshness.IsStale {
+			freshness.IsStale = true
+		}
+		if p.Freshness.DataAsOf.Before(freshness.DataAsOf) {
+			freshness.DataAsOf = p.Freshness.DataAsOf
+		}
+	}
+	return pilots, warnings, enrichResult{Freshness: freshness, StageDurations: stageDurations}
+}
+
+func (a *AppService) fetchSummaryRows(ctx context.Context, identities []domain.CharacterIdentity) (map[int64]zkill.SummaryRow, []domain.ProviderWarning) {
+	warnings := make([]domain.ProviderWarning, 0)
+	summaries := make(map[int64]zkill.SummaryRow, len(identities))
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 6)
+	for _, ident := range identities {
+		ident := ident
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			row, err := a.zkill.FetchSummary(ctx, ident.CharacterID)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				warnings = append(warnings, domain.ProviderWarning{Provider: "zkill", Code: "SUMMARY_FAILED", Message: fmt.Sprintf("%s (%d): %v", ident.Name, ident.CharacterID, err)})
+				return
+			}
+			summaries[ident.CharacterID] = row
+		}()
+	}
+	wg.Wait()
+	return summaries, warnings
+}
+
+func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThreatRecord, targetIDs []int64) []domain.ProviderWarning {
+	warnings := make([]domain.ProviderWarning, 0)
+	byID := make(map[int64]int, len(pilots))
+	for i, p := range pilots {
+		byID[p.Identity.CharacterID] = i
+	}
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 4)
+	for _, id := range targetIDs {
+		idx, ok := byID[id]
+		if !ok {
+			continue
+		}
+		id := id
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			kms, err := a.zkill.FetchRecentByCharacter(ctx, id, 25)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				warnings = append(warnings, domain.ProviderWarning{Provider: "zkill", Code: "DETAIL_FAILED", Message: fmt.Sprintf("pilot %d: %v", id, err)})
+				return
+			}
+			if len(kms) == 0 {
+				return
+			}
+			latest := kms[0].OccurredAt.UTC()
+			for _, km := range kms[1:] {
+				if km.OccurredAt.After(latest) {
+					latest = km.OccurredAt.UTC()
+				}
+			}
+			pilots[idx].Freshness = domain.FetchFreshness{Source: "zkill_detail", DataAsOf: latest, IsStale: isStale(latest, a.settings.RefreshInterval)}
+		}()
+	}
+	wg.Wait()
+	return warnings
+}
+
+func isStale(dataAsOf time.Time, refreshIntervalMin int) bool {
+	if refreshIntervalMin <= 0 {
+		refreshIntervalMin = 30
+	}
+	return time.Since(dataAsOf) > time.Duration(refreshIntervalMin)*time.Minute
+}
+
+func summarizeWarnings(warnings []domain.ProviderWarning) []domain.ProviderWarningSummary {
+	grouped := map[string]int{}
+	for _, w := range warnings {
+		grouped[w.Provider]++
+	}
+	keys := make([]string, 0, len(grouped))
+	for k := range grouped {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	out := make([]domain.ProviderWarningSummary, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, domain.ProviderWarningSummary{Provider: k, Count: grouped[k]})
+	}
+	return out
 }
 
 func (a *AppService) RefreshSession(sessionID string) (domain.AnalysisSession, error) {
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	s, ok := a.sessions[sessionID]
+	a.mu.Unlock()
 	if !ok {
 		return domain.AnalysisSession{}, fmt.Errorf("session %s not found", sessionID)
 	}
+	pilots, warnings, freshness := a.enrichPilots(context.Background(), s.Source.ParsedCharacters, true, 0)
+	s.Pilots = pilots
+	s.Warnings = append(s.Source.Warnings, warnings...)
+	s.WarningCount = len(s.Warnings)
+	s.ProviderWarningSummary = summarizeWarnings(s.Warnings)
+	s.Freshness = freshness.Freshness
+	for k, v := range freshness.StageDurations {
+		s.DurationMetrics[k] = v
+	}
 	s.UpdatedAt = time.Now().UTC()
+	a.mu.Lock()
 	a.sessions[sessionID] = s
+	a.mu.Unlock()
 	return s, nil
 }
 
 func (a *AppService) RefreshPilot(sessionID string, characterID int64) (domain.PilotThreatRecord, error) {
 	a.mu.Lock()
-	defer a.mu.Unlock()
 	s, ok := a.sessions[sessionID]
+	a.mu.Unlock()
 	if !ok {
 		return domain.PilotThreatRecord{}, fmt.Errorf("session %s not found", sessionID)
 	}
-	for i := range s.Pilots {
-		if s.Pilots[i].Identity.CharacterID == characterID {
-			s.Pilots[i].LastUpdated = time.Now().UTC()
-			a.sessions[sessionID] = s
-			return s.Pilots[i], nil
+	found := false
+	for _, p := range s.Pilots {
+		if p.Identity.CharacterID == characterID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return domain.PilotThreatRecord{}, fmt.Errorf("pilot %d not found in session %s", characterID, sessionID)
+	}
+	pilots, warnings, _ := a.enrichPilots(context.Background(), s.Source.ParsedCharacters, false, characterID)
+	s.Pilots = pilots
+	s.Warnings = append(s.Source.Warnings, warnings...)
+	s.WarningCount = len(s.Warnings)
+	s.ProviderWarningSummary = summarizeWarnings(s.Warnings)
+	s.UpdatedAt = time.Now().UTC()
+	a.mu.Lock()
+	a.sessions[sessionID] = s
+	a.mu.Unlock()
+	for _, p := range pilots {
+		if p.Identity.CharacterID == characterID {
+			return p, nil
 		}
 	}
 	return domain.PilotThreatRecord{}, fmt.Errorf("pilot %d not found in session %s", characterID, sessionID)

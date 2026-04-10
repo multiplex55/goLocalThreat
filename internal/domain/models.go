@@ -26,9 +26,6 @@ type InvalidLine struct {
 }
 
 func (p ParseResult) Validate() error {
-	if p.RawText == "" {
-		return errors.New("rawText is required")
-	}
 	if p.ParsedAt.IsZero() {
 		return errors.New("parsedAt is required")
 	}
@@ -100,15 +97,24 @@ func (t ThreatBreakdown) Validate() error {
 	return nil
 }
 
+type ProviderWarningSummary struct {
+	Provider string `json:"provider"`
+	Count    int    `json:"count"`
+}
+
 type AnalysisSession struct {
-	SessionID string              `json:"sessionId"`
-	CreatedAt time.Time           `json:"createdAt"`
-	UpdatedAt time.Time           `json:"updatedAt"`
-	Source    ParseResult         `json:"source"`
-	Pilots    []PilotThreatRecord `json:"pilots"`
-	Settings  Settings            `json:"settings"`
-	Warnings  []ProviderWarning   `json:"warnings"`
-	Freshness FetchFreshness      `json:"freshness"`
+	SessionID              string                   `json:"sessionId"`
+	CreatedAt              time.Time                `json:"createdAt"`
+	UpdatedAt              time.Time                `json:"updatedAt"`
+	Source                 ParseResult              `json:"source"`
+	Pilots                 []PilotThreatRecord      `json:"pilots"`
+	Settings               Settings                 `json:"settings"`
+	Warnings               []ProviderWarning        `json:"warnings"`
+	Freshness              FetchFreshness           `json:"freshness"`
+	DurationMetrics        map[string]int64         `json:"durationMetrics,omitempty"`
+	WarningCount           int                      `json:"warningCount,omitempty"`
+	UnresolvedNames        []string                 `json:"unresolvedNames,omitempty"`
+	ProviderWarningSummary []ProviderWarningSummary `json:"providerWarningSummary,omitempty"`
 }
 
 func (a AnalysisSession) Validate() error {
