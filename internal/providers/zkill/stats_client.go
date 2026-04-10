@@ -61,7 +61,6 @@ func (c *StatsClient) fetchSummary(ctx context.Context, characterID int64) (Summ
 		return SummaryRow{}, err
 	}
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Accept-Encoding", "gzip")
 	req.Header.Set("User-Agent", c.userAgent)
 
 	c.throttle.BeforeRequest()
