@@ -7,10 +7,22 @@ import (
 )
 
 type ParseResult struct {
-	RawText          string              `json:"rawText"`
-	ParsedCharacters []CharacterIdentity `json:"parsedCharacters"`
-	Warnings         []ProviderWarning   `json:"warnings"`
-	ParsedAt         time.Time           `json:"parsedAt"`
+	RawText             string              `json:"rawText"`
+	NormalizedText      string              `json:"normalizedText"`
+	ParsedCharacters    []CharacterIdentity `json:"parsedCharacters"`
+	CandidateNames      []string            `json:"candidateNames"`
+	InvalidLines        []InvalidLine       `json:"invalidLines"`
+	Warnings            []ProviderWarning   `json:"warnings"`
+	InputKind           string              `json:"inputKind"`
+	Confidence          float64             `json:"confidence"`
+	RemovedDuplicates   int                 `json:"removedDuplicates"`
+	SuspiciousArtifacts int                 `json:"suspiciousArtifacts"`
+	ParsedAt            time.Time           `json:"parsedAt"`
+}
+
+type InvalidLine struct {
+	Line       string `json:"line"`
+	ReasonCode string `json:"reasonCode"`
 }
 
 func (p ParseResult) Validate() error {

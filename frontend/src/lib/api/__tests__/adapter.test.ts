@@ -9,8 +9,15 @@ describe('api adapter', () => {
       updatedAt: '2026-01-01T00:00:00Z',
       source: {
         rawText: 'Alpha\\nBeta',
+        normalizedText: 'Alpha\nBeta',
         parsedCharacters: [],
-        warnings: [],
+        candidateNames: ['Alpha'],
+        invalidLines: [{ line: '123', reasonCode: 'no_letters' }],
+        warnings: [{ provider: 'parser', code: 'duplicates_removed', message: 'duplicates removed' }],
+        inputKind: 'local_member_list',
+        confidence: 0.9,
+        removedDuplicates: 2,
+        suspiciousArtifacts: 1,
         parsedAt: '2026-01-01T00:00:00Z',
       },
       pilots: [],
@@ -23,6 +30,13 @@ describe('api adapter', () => {
       pilotCount: 0,
       warningCount: 1,
       sourceTextLength: 11,
+      parseSummary: {
+        candidateCount: 1,
+        invalidLineCount: 1,
+        duplicateRemovalCount: 2,
+        warningCount: 1,
+        warnings: [{ code: 'duplicates_removed', message: 'duplicates removed' }],
+      },
     });
   });
 });

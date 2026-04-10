@@ -8,6 +8,13 @@ export function toAnalysisSessionView(dto: AppService.AnalysisSessionDTO): Analy
     pilotCount: dto.pilots.length,
     warningCount: dto.warnings.length,
     sourceTextLength: dto.source.rawText.length,
+    parseSummary: {
+      candidateCount: dto.source.candidateNames.length,
+      invalidLineCount: dto.source.invalidLines.length,
+      duplicateRemovalCount: dto.source.removedDuplicates,
+      warningCount: dto.source.warnings.length,
+      warnings: dto.source.warnings.map((w) => ({ code: w.code, message: w.message })),
+    },
   };
 }
 
