@@ -45,14 +45,19 @@ func (c *KillmailClient) FetchRecentByCharacter(ctx context.Context, characterID
 		return nil, fmt.Errorf("character id is required")
 	}
 	limit = clampLimit(limit)
-	key := fmt.Sprintf("killmail:%d:%d", characterID, limit)
+	key := fmt.Sprintf("killmail:%d", characterID)
 	v, err := c.runMemo.Do(key, func() (any, error) {
-		return c.fetchKillmails(ctx, characterID, limit)
+		return c.fetchKillmails(ctx, characterID)
 	})
 	if err != nil {
 		return nil, err
 	}
-	return v.([]Killmail), nil
+	items := v.([]Killmail)
+	n := limit
+	if n > len(items) {
+		n = len(items)
+	}
+	return append([]Killmail(nil), items[:n]...), nil
 }
 
 func clampLimit(n int) int {
@@ -65,12 +70,12 @@ func clampLimit(n int) int {
 	return n
 }
 
-func (c *KillmailClient) fetchKillmails(ctx context.Context, characterID int64, limit int) ([]Killmail, error) {
-	cacheKey := fmt.Sprintf("%d:%d", characterID, limit)
+func (c *KillmailClient) fetchKillmails(ctx context.Context, characterID int64) ([]Killmail, error) {
+	cacheKey := fmt.Sprintf("%d", characterID)
 	if payload, ok := c.cache.get("killmail", cacheKey); ok {
 		return parseKillmails(payload)
 	}
-	path := fmt.Sprintf("/api/kills/characterID/%d/limit/%d/no-items/orderDirection/desc/", characterID, limit)
+	path := fmt.Sprintf("/api/kills/characterID/%d/", characterID)
 	target, err := url.JoinPath(c.baseURL, path)
 	if err != nil {
 		return nil, err
@@ -80,7 +85,6 @@ func (c *KillmailClient) fetchKillmails(ctx context.Context, characterID int64, 
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Accept-Encoding", "gzip")
 	req.Header.Set("User-Agent", c.userAgent)
 
 	c.throttle.BeforeRequest()
