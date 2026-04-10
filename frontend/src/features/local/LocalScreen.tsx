@@ -18,32 +18,50 @@ export interface LocalScreenProps {
 
 function toThreatRows(analyzeState: AnalyzeState): ThreatRowView[] {
   const warningsByPilotId = analyzeState.data?.diagnostics.warningsByPilotId ?? {};
-  return (analyzeState.data?.pilots ?? []).map((pilot, index) => ({
+  return (analyzeState.data?.pilots ?? []).map((pilot, index) => {
+    const confidencePercent = Math.round(pilot.confidence * 100);
+    const reasonBreakdown = pilot.reasons.map((reason, reasonIndex) => ({
+      label: reason,
+      score: Math.max(5, 30 - (reasonIndex * 5)),
+    }));
+    const dataCompletenessMarkers = pilot.confidence < 0.7
+      ? ['Unknown due to partial killmail timestamps']
+      : [];
+
+    return ({
     id: pilot.id,
     pilotName: pilot.name,
     corp: pilot.corporation,
     alliance: pilot.alliance,
     mainShip: 'Unknown ship',
+    mainRecentShip: 'Unknown ship',
     score: pilot.score,
     threatBand: pilot.band === 'critical' || pilot.band === 'high' || pilot.band === 'medium' || pilot.band === 'low' ? pilot.band : 'low',
+    confidence: pilot.confidence,
+    reasonBreakdown,
     kills: 0,
     losses: 0,
     dangerPercent: 0,
     soloPercent: 0,
     avgGangSize: 0,
+    soloGangTendency: 'Unknown',
     lastKill: 'Unknown',
     lastLoss: 'Unknown',
+    lastActivitySummary: 'No recent kill/loss timestamps available',
+    freshness: confidencePercent >= 70 ? 'Recently Active' : 'Stale Data',
     tags: pilot.reasons,
     notes: '',
-    lastSeen: `confidence ${Math.round(pilot.confidence * 100)}%`,
+    lastSeen: `confidence ${confidencePercent}%`,
     status: analyzeState.status === 'loading' ? 'loading' : 'ready',
+    dataCompletenessMarkers,
     warnings: warningsByPilotId[pilot.id]?.map((warning) => ({
       provider: warning.provider,
       severity: warning.severity,
       userVisible: warning.userVisible,
       message: warning.message,
     })) ?? [],
-  }))
+  });
+  })
     .map((row, index) => ({ ...row, id: row.id || String(index) }));
 }
 
@@ -187,6 +205,11 @@ export function LocalScreen({
         <aside data-testid="local-right-panel">
           <h3 data-testid="detail-title">{detail.title}</h3>
           <div data-testid="detail-pane">
+            <div data-testid="detail-semantic-badges">
+              {detail.semanticBadges.map((badge) => (
+                <span key={badge.label} data-tone={badge.tone}>{badge.label}</span>
+              ))}
+            </div>
             {detail.sections.map((section) => (
               <p key={section.label}><strong>{section.label}:</strong> {section.value}</p>
             ))}

@@ -33,8 +33,8 @@ function buildState(): AnalyzeState {
         warnings: [],
       },
       pilots: [
-        { id: '10', name: 'Alpha', corporation: 'A Corp', alliance: 'A', score: 91, band: 'critical', reasons: ['hot'], confidence: 0.9 },
-        { id: '11', name: 'Beta', corporation: 'B Corp', alliance: 'B', score: 52, band: 'medium', reasons: ['active'], confidence: 0.8 },
+        { id: '10', name: 'Alpha', corporation: 'A Corp', alliance: 'A', score: 91, band: 'critical', reasons: ['FC', 'Hunter'], confidence: 0.9 },
+        { id: '11', name: 'Beta', corporation: 'B Corp', alliance: 'B', score: 52, band: 'medium', reasons: ['Stale Data'], confidence: 0.55 },
       ],
     },
   };
@@ -43,7 +43,6 @@ function buildState(): AnalyzeState {
 describe('LocalScreen', () => {
   it('renders all five major regions', () => {
     render(<LocalScreen pastedText="" analyzeState={buildState()} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
-
     expect(screen.getByTestId('local-top-toolbar')).toBeInTheDocument();
     expect(screen.getByTestId('local-left-panel')).toBeInTheDocument();
     expect(screen.getByTestId('local-center-panel')).toBeInTheDocument();
@@ -75,15 +74,16 @@ describe('LocalScreen', () => {
     expect(screen.getByTestId('detail-title')).toHaveTextContent('Alpha');
   });
 
-  it('switching selected row updates DetailPanel props', () => {
+  it('detail pane renders score + confidence + reasons for selected pilot', () => {
     render(<LocalScreen pastedText="" analyzeState={buildState()} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
 
-    fireEvent.click(screen.getByRole('button', { name: /Beta · 52 · medium/i }));
-    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Corporation: B Corp');
-    expect(screen.getByTestId('detail-title')).toHaveTextContent('Beta');
+    fireEvent.click(screen.getByText('Beta'));
+    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Threat: MEDIUM · 52');
+    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Confidence: 55%');
+    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Why this score: Stale Data (+30)');
   });
 
-  it('diagnostics badge reflects global warning counts and detail panel shows selected pilot warnings only', () => {
+  it('warning list scoped only to selected pilot', () => {
     const state = buildState();
     state.data!.diagnostics.globalWarnings = [{ code: 'RATE_LIMITED', message: 'provider slow', severity: 'warn', provider: 'esi', userVisible: true }];
     state.data!.diagnostics.severityCounts = { info: 0, warn: 1, error: 0 };
@@ -93,10 +93,24 @@ describe('LocalScreen', () => {
     };
 
     render(<LocalScreen pastedText="" analyzeState={state} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
-    expect(screen.getByTestId('diagnostics-expander')).toHaveTextContent('global warnings: 1');
     expect(screen.getByTestId('detail-warnings')).not.toHaveTextContent('Beta had invalid time');
 
-    fireEvent.click(screen.getByRole('button', { name: /Beta · 52 · medium/i }));
+    fireEvent.click(screen.getByText('Beta'));
     expect(screen.getByTestId('detail-warnings')).toHaveTextContent('Beta had invalid time');
+  });
+
+  it('missing-data state messaging appears when confidence is reduced', () => {
+    render(<LocalScreen pastedText="" analyzeState={buildState()} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
+    fireEvent.click(screen.getByText('Beta'));
+    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Data completeness: Unknown due to partial killmail timestamps');
+  });
+
+  it('semantic tag badges render based on mapped tag set', () => {
+    render(<LocalScreen pastedText="" analyzeState={buildState()} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
+
+    expect(screen.getByTestId('detail-semantic-badges')).toHaveTextContent('FC');
+    expect(screen.getByTestId('detail-semantic-badges')).toHaveTextContent('Hunter');
+    fireEvent.click(screen.getByText('Beta'));
+    expect(screen.getByTestId('detail-semantic-badges')).toHaveTextContent('Stale Data');
   });
 });
