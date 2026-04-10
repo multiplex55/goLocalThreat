@@ -1,1 +1,7 @@
-export { analyzePastedText, toAnalysisSessionView } from './adapter';
+export {
+  analyzePastedText,
+  loadRecentSessions,
+  loadSettings,
+  saveSettings,
+  toAnalysisSessionView,
+} from './adapter';
