@@ -167,7 +167,9 @@ func TestAnalyzeFlowStaleCacheRefreshBehavior(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RefreshSession err: %v", err)
 	}
-	if !refreshed.UpdatedAt.After(session.UpdatedAt) {
+	refreshedUpdatedAt := mustParseRFC3339(t, refreshed.UpdatedAt)
+	previousUpdatedAt := mustParseRFC3339(t, session.UpdatedAt)
+	if !refreshedUpdatedAt.After(previousUpdatedAt) {
 		t.Fatalf("expected session updated time to move forward")
 	}
 	pilot, err := svc.RefreshPilot(session.SessionID, 101)
@@ -202,10 +204,10 @@ func TestAnalyzeFlowDetailZeroOccurredAtKeepsSummaryFreshness(t *testing.T) {
 		t.Fatalf("AnalyzePastedText err: %v", err)
 	}
 	got := session.Pilots[0].Freshness.DataAsOf
-	if got.IsZero() {
+	if got == "" {
 		t.Fatalf("pilot freshness should remain non-zero")
 	}
-	if !got.Equal(lastActivity) {
+	if !mustParseRFC3339(t, got).Equal(lastActivity) {
 		t.Fatalf("expected summary freshness %s, got %s", lastActivity, got)
 	}
 	foundWarning := false
@@ -244,7 +246,7 @@ func TestAnalyzeFlowDetailMixedOccurredAtUsesValidLatest(t *testing.T) {
 		t.Fatalf("AnalyzePastedText err: %v", err)
 	}
 	got := session.Pilots[0].Freshness.DataAsOf
-	if !got.Equal(validLatest) {
+	if !mustParseRFC3339(t, got).Equal(validLatest) {
 		t.Fatalf("expected valid detail latest %s, got %s", validLatest, got)
 	}
 }
@@ -268,7 +270,7 @@ func TestAnalyzeFlowDetailInvalidTimestampsPreservesSummaryFreshness(t *testing.
 	if err != nil {
 		t.Fatalf("AnalyzePastedText err: %v", err)
 	}
-	if got := session.Pilots[0].Freshness.DataAsOf; !got.Equal(lastActivity) {
+	if got := session.Pilots[0].Freshness.DataAsOf; !mustParseRFC3339(t, got).Equal(lastActivity) {
 		t.Fatalf("expected summary freshness %s to persist, got %s", lastActivity, got)
 	}
 }
@@ -299,7 +301,7 @@ func TestAnalyzeFlowDetailInvalidTimestampWarningDoesNotBreakAnalysis(t *testing
 	if len(session.Pilots) != 1 {
 		t.Fatalf("expected one pilot, got %d", len(session.Pilots))
 	}
-	if got := session.Pilots[0].Freshness.DataAsOf; !got.Equal(validLatest) {
+	if got := session.Pilots[0].Freshness.DataAsOf; !mustParseRFC3339(t, got).Equal(validLatest) {
 		t.Fatalf("expected detail freshness %s, got %s", validLatest, got)
 	}
 	foundInvalidWarning := false
@@ -311,4 +313,13 @@ func TestAnalyzeFlowDetailInvalidTimestampWarningDoesNotBreakAnalysis(t *testing
 	if !foundInvalidWarning {
 		t.Fatalf("expected DETAIL_TIME_INVALID warning, got %#v", session.Warnings)
 	}
+}
+
+func mustParseRFC3339(t *testing.T, value string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		t.Fatalf("parse RFC3339 time %q: %v", value, err)
+	}
+	return parsed
 }

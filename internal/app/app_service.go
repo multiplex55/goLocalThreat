@@ -122,7 +122,7 @@ func (a *AppService) GetBuildInfo() BuildInfo {
 	return a.build
 }
 
-func (a *AppService) AnalyzePastedText(text string) (domain.AnalysisSession, error) {
+func (a *AppService) AnalyzePastedText(text string) (AnalysisSessionDTO, error) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 	start := now
@@ -195,14 +195,14 @@ func (a *AppService) AnalyzePastedText(text string) (domain.AnalysisSession, err
 	stageDurations["total_ms"] = time.Since(start).Milliseconds()
 	if err := s.Validate(); err != nil {
 		a.logger.Error("analyze failed", "analysis_id", analysisID, "reason", "validation_failed", "error", err)
-		return domain.AnalysisSession{}, err
+		return AnalysisSessionDTO{}, err
 	}
 
 	a.mu.Lock()
 	a.sessions[s.SessionID] = s
 	a.mu.Unlock()
 	a.logger.Info("analyze completed", "analysis_id", analysisID, "session_id", s.SessionID, "duration_ms", stageDurations["total_ms"], "warning_count", len(warnings), "pilot_count", len(pilots))
-	return s, nil
+	return toAnalysisSessionDTO(s), nil
 }
 
 type enrichResult struct {
@@ -460,12 +460,12 @@ func minInt(a, b int) int {
 	return b
 }
 
-func (a *AppService) RefreshSession(sessionID string) (domain.AnalysisSession, error) {
+func (a *AppService) RefreshSession(sessionID string) (AnalysisSessionDTO, error) {
 	a.mu.Lock()
 	s, ok := a.sessions[sessionID]
 	a.mu.Unlock()
 	if !ok {
-		return domain.AnalysisSession{}, fmt.Errorf("session %s not found", sessionID)
+		return AnalysisSessionDTO{}, fmt.Errorf("session %s not found", sessionID)
 	}
 	pilots, warnings, freshness := a.enrichPilots(context.Background(), s.Source.ParsedCharacters, true, 0, "")
 	s.Pilots = pilots
@@ -480,15 +480,15 @@ func (a *AppService) RefreshSession(sessionID string) (domain.AnalysisSession, e
 	a.mu.Lock()
 	a.sessions[sessionID] = s
 	a.mu.Unlock()
-	return s, nil
+	return toAnalysisSessionDTO(s), nil
 }
 
-func (a *AppService) RefreshPilot(sessionID string, characterID int64) (domain.PilotThreatRecord, error) {
+func (a *AppService) RefreshPilot(sessionID string, characterID int64) (PilotThreatRecordDTO, error) {
 	a.mu.Lock()
 	s, ok := a.sessions[sessionID]
 	a.mu.Unlock()
 	if !ok {
-		return domain.PilotThreatRecord{}, fmt.Errorf("session %s not found", sessionID)
+		return PilotThreatRecordDTO{}, fmt.Errorf("session %s not found", sessionID)
 	}
 	found := false
 	for _, p := range s.Pilots {
@@ -498,7 +498,7 @@ func (a *AppService) RefreshPilot(sessionID string, characterID int64) (domain.P
 		}
 	}
 	if !found {
-		return domain.PilotThreatRecord{}, fmt.Errorf("pilot %d not found in session %s", characterID, sessionID)
+		return PilotThreatRecordDTO{}, fmt.Errorf("pilot %d not found in session %s", characterID, sessionID)
 	}
 	pilots, warnings, _ := a.enrichPilots(context.Background(), s.Source.ParsedCharacters, false, characterID, "")
 	s.Pilots = pilots
@@ -511,21 +511,21 @@ func (a *AppService) RefreshPilot(sessionID string, characterID int64) (domain.P
 	a.mu.Unlock()
 	for _, p := range pilots {
 		if p.Identity.CharacterID == characterID {
-			return p, nil
+			return toPilotDTO(p), nil
 		}
 	}
-	return domain.PilotThreatRecord{}, fmt.Errorf("pilot %d not found in session %s", characterID, sessionID)
+	return PilotThreatRecordDTO{}, fmt.Errorf("pilot %d not found in session %s", characterID, sessionID)
 }
 
-func (a *AppService) LoadRecentSessions(limit int) ([]domain.AnalysisSession, error) {
+func (a *AppService) LoadRecentSessions(limit int) ([]AnalysisSessionDTO, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if limit <= 0 {
 		limit = 10
 	}
-	out := make([]domain.AnalysisSession, 0, len(a.sessions))
+	out := make([]AnalysisSessionDTO, 0, len(a.sessions))
 	for _, s := range a.sessions {
-		out = append(out, s)
+		out = append(out, toAnalysisSessionDTO(s))
 		if len(out) == limit {
 			break
 		}
