@@ -62,6 +62,14 @@ function useMediaQuery(query: string): boolean {
   return matches;
 }
 
+export function formatRosterSummaryChip(parsedCount: number, resolvedCount: number): string {
+  return `Roster · ${parsedCount} parsed · ${resolvedCount} resolved`;
+}
+
+export function formatDetailStatusChip(detailCount: number, totalCount: number): string {
+  return `detail ${detailCount}/${totalCount}`;
+}
+
 export function LocalScreen({
   pastedText,
   analyzeState,
@@ -83,8 +91,7 @@ export function LocalScreen({
   const partialKillmailTimestampCount = diagnostics?.warningCodeCounts?.DETAIL_TIME_INVALID ?? 0;
 
   const rightCollapsed = useMediaQuery('(max-width: 1439px)');
-  const leftCollapsed = useMediaQuery('(max-width: 1169px)');
-  const [activePane, setActivePane] = useState<'center' | 'left' | 'right'>('center');
+  const [activePane, setActivePane] = useState<'center' | 'right'>('center');
 
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<ThreatTableColumn>(workspacePrefs.table.sortBy);
@@ -100,6 +107,7 @@ export function LocalScreen({
   const [pinnedRowIds, setPinnedRowIds] = useState<Set<string>>(new Set());
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [rosterOpen, setRosterOpen] = useState(false);
+  const [autoCollapseDrawer, setAutoCollapseDrawer] = useState(true);
   const [visibleRowIds, setVisibleRowIds] = useState<string[]>([]);
   const pasteInputRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollParentRef = useRef<HTMLDivElement>(null);
@@ -107,12 +115,8 @@ export function LocalScreen({
   useEffect(() => {
     if (!rightCollapsed) {
       setActivePane('center');
-      return;
     }
-    if (leftCollapsed && activePane === 'left') {
-      setActivePane('center');
-    }
-  }, [activePane, leftCollapsed, rightCollapsed]);
+  }, [rightCollapsed]);
 
   useEffect(() => {
     dehydrateWorkspacePrefs({
@@ -166,6 +170,16 @@ export function LocalScreen({
 
   const selectedRow = useMemo(() => rows.find((row) => row.id === selectedRowId) ?? null, [rows, selectedRowId]);
 
+  const parsedCount = diagnostics?.candidateNamesCount ?? 0;
+  const resolvedCount = diagnostics?.resolvedCount ?? 0;
+  const unresolvedCount = unresolvedNames.length;
+  const parseWarnings = analyzeState.data?.parseSummary.warnings ?? [];
+  const detailTotalCount = rows.length;
+  const detailEnrichedCount = rows.filter((row) => row.lastSeen || row.mainShip || row.kills !== null || row.losses !== null).length;
+
+  const rosterSummary = formatRosterSummaryChip(parsedCount, resolvedCount);
+  const detailStatus = formatDetailStatusChip(detailEnrichedCount, detailTotalCount);
+
   const copyName = useCallback(async (pilotName: string | null) => {
     if (!pilotName) {
       setActionMessage('No selected pilot to copy.');
@@ -193,20 +207,26 @@ export function LocalScreen({
     setActionMessage(`Refreshing ${selectedRow.pilotName}...`);
   }, [onRefreshSelected, selectedRow]);
 
+  const triggerAnalyze = useCallback(() => {
+    onAnalyze();
+    if (autoCollapseDrawer) setRosterOpen(false);
+  }, [autoCollapseDrawer, onAnalyze]);
+
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Enter' && !isEditableTarget(event.target)) {
       event.preventDefault();
-      refreshSelected();
+      triggerAnalyze();
       return;
     }
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
       event.preventDefault();
-      onAnalyze();
+      triggerAnalyze();
       return;
     }
 
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v' && !isEditableTarget(event.target)) {
       event.preventDefault();
+      setRosterOpen(true);
       pasteInputRef.current?.focus();
       return;
     }
@@ -228,7 +248,7 @@ export function LocalScreen({
       event.preventDefault();
       void copyName(selectedRow?.pilotName ?? null);
     }
-  }, [copyAllNames, copyName, onAnalyze, refreshSelected, selectedRow?.pilotName, selectedRowId, visibleRowIds]);
+  }, [copyAllNames, copyName, selectedRow?.pilotName, selectedRowId, triggerAnalyze, visibleRowIds]);
 
   if (!useLocalIntelV2Layout) return <div data-testid="local-screen-disabled">Local intel v2 layout is disabled.</div>;
 
@@ -236,81 +256,99 @@ export function LocalScreen({
 
   return (
     <section className="local-screen" data-testid="local-screen" tabIndex={0} onKeyDown={onKeyDown} aria-label="Local intel workspace">
-      <div className="local-layout-grid" data-testid="local-layout-grid" data-layout-mode={showDesktopGrid ? 'desktop' : 'stacked'}>
-        {(!leftCollapsed || showDesktopGrid || activePane === 'left') ? (
-          <aside className="local-left-panel" data-testid="local-left-panel" hidden={!showDesktopGrid && activePane !== 'left'}>
-            <div className="roster-panel-header">
-              <strong>Roster</strong>
-              <button type="button" onClick={() => setRosterOpen((v) => !v)} data-testid="roster-toggle">{rosterOpen ? 'Collapse' : 'Expand'}</button>
-            </div>
-            <p data-testid="parse-summary">Parsed {diagnostics?.candidateNamesCount ?? 0} · resolved {diagnostics?.resolvedCount ?? 0}</p>
-            {rosterOpen ? (
-              <>
-                <label htmlFor="paste-input">Pasted roster</label>
-                <textarea ref={pasteInputRef} id="paste-input" data-testid="paste-textbox" value={pastedText} rows={8} onChange={(event) => onPasteChange(event.target.value)} />
-              </>
+      <main className="local-center-panel" data-testid="local-center-panel" data-roster-collapsed={rosterOpen ? 'false' : 'true'}>
+        <div className="local-center-controls" data-testid="local-center-controls">
+          <button type="button" onClick={triggerAnalyze} disabled={analyzeState.status === 'loading'}>Analyze</button>
+          <button type="button" onClick={refreshSelected}>Refresh Selected</button>
+          <button type="button" onClick={() => void copyName(selectedRow?.pilotName ?? null)} disabled={!selectedRow}>Copy Selected</button>
+          <button type="button" onClick={() => void copyAllNames()} disabled={!rows.length}>Copy All</button>
+          <button type="button" data-testid="density-toggle" onClick={() => setCompactMode((v) => !v)}>{compactMode ? 'Comfortable' : 'Compact'}</button>
+          <div className="columns-menu" data-testid="columns-menu">
+            <button type="button" onClick={() => setColumnMenuOpen((v) => !v)}>Columns</button>
+            {columnMenuOpen ? (
+              <div className="columns-menu-popover">
+                {Object.keys(visibleColumns).map((column) => (
+                  <label key={column}><input type="checkbox" checked={visibleColumns[column as ThreatTableColumn]} onChange={() => setVisibleColumns((curr) => ({ ...curr, [column]: !curr[column as ThreatTableColumn] }))} />{column}</label>
+                ))}
+              </div>
             ) : null}
-          </aside>
-        ) : null}
-
-        <main className="local-center-panel" data-testid="local-center-panel" hidden={!showDesktopGrid && activePane !== 'center'}>
-          <div className="local-center-controls" data-testid="local-center-controls">
-            <input data-testid="threat-filter" value={filterText} onChange={(e) => setFilterText(e.target.value)} placeholder="Filter pilot/corp/alliance/tags" />
-            <label><input type="checkbox" checked={quickFilters.nonLowOnly} onChange={(event) => setQuickFilters((curr) => ({ ...curr, nonLowOnly: event.target.checked }))} />Non-low</label>
-            <label><input type="checkbox" checked={quickFilters.recentOnly} onChange={(event) => setQuickFilters((curr) => ({ ...curr, recentOnly: event.target.checked }))} />Recent only</label>
-            <button type="button" onClick={onAnalyze} disabled={analyzeState.status === 'loading'}>Analyze</button>
-            <button type="button" onClick={refreshSelected}>Refresh Selected</button>
-            <button type="button" onClick={() => void copyName(selectedRow?.pilotName ?? null)} disabled={!selectedRow}>Copy Selected</button>
-            <button type="button" onClick={() => void copyAllNames()} disabled={!rows.length}>Copy All</button>
-            <button type="button" data-testid="density-toggle" onClick={() => setCompactMode((v) => !v)}>{compactMode ? 'Comfortable' : 'Compact'}</button>
-            <div className="columns-menu" data-testid="columns-menu">
-              <button type="button" onClick={() => setColumnMenuOpen((v) => !v)}>Columns</button>
-              {columnMenuOpen ? (
-                <div className="columns-menu-popover">
-                  {Object.keys(visibleColumns).map((column) => (
-                    <label key={column}><input type="checkbox" checked={visibleColumns[column as ThreatTableColumn]} onChange={() => setVisibleColumns((curr) => ({ ...curr, [column]: !curr[column as ThreatTableColumn] }))} />{column}</label>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-            <button type="button" onClick={onSettings}>Settings</button>
-            <span role="status" aria-live="polite" data-testid="action-feedback">{actionMessage}</span>
           </div>
+          <button type="button" onClick={onSettings}>Settings</button>
+          <span data-testid="detail-status-chip">{detailStatus}</span>
+          <span role="status" aria-live="polite" data-testid="action-feedback">{actionMessage}</span>
+        </div>
 
-          <VirtualThreatTable
-            rows={rows}
-            selectedRowId={selectedRowId}
-            compactMode={compactMode}
-            sortBy={sortBy}
-            sortDirection={sortDirection}
-            filterText={filterText}
-            visibleColumns={visibleColumns}
-            onRowSelect={setSelectedRowId}
-            onRowTogglePin={(rowId) => setPinnedRowIds((current) => {
-              const next = new Set(current);
-              if (next.has(rowId)) next.delete(rowId);
-              else next.add(rowId);
-              return next;
-            })}
-            onSortChange={(column) => {
-              if (sortBy === column) setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
-              else {
-                setSortBy(column);
-                setSortDirection(column === 'pilotName' || column === 'corp' || column === 'alliance' ? 'asc' : 'desc');
-              }
-            }}
-            isPinned={(rowId) => pinnedRowIds.has(rowId)}
-            scrollParentRef={scrollParentRef}
-            onVisibleRowIdsChange={setVisibleRowIds}
-          />
-        </main>
+        <div className="roster-intake-drawer" data-testid="roster-intake-drawer" data-expanded={rosterOpen ? 'true' : 'false'}>
+          <div className="roster-panel-header">
+            <button type="button" className="roster-summary-chip" data-testid="roster-summary-chip" onClick={() => setRosterOpen((v) => !v)}>
+              {rosterSummary}
+            </button>
+            <button type="button" onClick={() => setRosterOpen((v) => !v)} data-testid="roster-toggle">{rosterOpen ? 'Collapse' : 'Expand'}</button>
+          </div>
+          {rosterOpen ? (
+            <div className="roster-drawer-expanded" data-testid="roster-drawer-expanded">
+              <label htmlFor="paste-input">Pasted roster</label>
+              <textarea ref={pasteInputRef} id="paste-input" data-testid="paste-textbox" value={pastedText} rows={6} onChange={(event) => onPasteChange(event.target.value)} />
+              <p data-testid="parse-summary">Parsed {parsedCount} · resolved {resolvedCount} · unresolved {unresolvedCount}</p>
+              <ul data-testid="parse-warnings-list">
+                {parseWarnings.length ? parseWarnings.map((warning) => <li key={`${warning.code}-${warning.message}`}>{warning.normalizedLabel ?? warning.message}</li>) : <li>No parse warnings.</li>}
+              </ul>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={autoCollapseDrawer}
+                  onChange={(event) => setAutoCollapseDrawer(event.target.checked)}
+                  data-testid="auto-collapse-toggle"
+                />
+                Auto-collapse after analyze
+              </label>
+            </div>
+          ) : null}
+        </div>
 
-        {showDesktopGrid || activePane === 'right' ? (
-          <aside className="local-right-panel" data-testid="local-right-panel" hidden={!showDesktopGrid && activePane !== 'right'}>
-            <PilotDetailPanel row={selectedRow} />
-          </aside>
-        ) : null}
-      </div>
+        <div className="local-filter-row" data-testid="local-filter-row">
+          <input data-testid="threat-filter" value={filterText} onChange={(e) => setFilterText(e.target.value)} placeholder="Filter pilot/corp/alliance/tags" />
+          <label><input type="checkbox" checked={quickFilters.nonLowOnly} onChange={(event) => setQuickFilters((curr) => ({ ...curr, nonLowOnly: event.target.checked }))} />Non-low</label>
+          <label><input type="checkbox" checked={quickFilters.recentOnly} onChange={(event) => setQuickFilters((curr) => ({ ...curr, recentOnly: event.target.checked }))} />Recent only</label>
+        </div>
+
+        <div className="local-layout-grid" data-testid="local-layout-grid" data-layout-mode={showDesktopGrid ? 'desktop' : 'stacked'} data-roster-collapsed={rosterOpen ? 'false' : 'true'}>
+          <section className="local-table-shell" hidden={!showDesktopGrid && activePane !== 'center'}>
+            <VirtualThreatTable
+              rows={rows}
+              selectedRowId={selectedRowId}
+              compactMode={compactMode}
+              sortBy={sortBy}
+              sortDirection={sortDirection}
+              filterText={filterText}
+              visibleColumns={visibleColumns}
+              onRowSelect={setSelectedRowId}
+              onRowTogglePin={(rowId) => setPinnedRowIds((current) => {
+                const next = new Set(current);
+                if (next.has(rowId)) next.delete(rowId);
+                else next.add(rowId);
+                return next;
+              })}
+              onSortChange={(column) => {
+                if (sortBy === column) setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+                else {
+                  setSortBy(column);
+                  setSortDirection(column === 'pilotName' || column === 'corp' || column === 'alliance' ? 'asc' : 'desc');
+                }
+              }}
+              isPinned={(rowId) => pinnedRowIds.has(rowId)}
+              scrollParentRef={scrollParentRef}
+              onVisibleRowIdsChange={setVisibleRowIds}
+            />
+          </section>
+
+          {showDesktopGrid || activePane === 'right' ? (
+            <aside className="local-right-panel" data-testid="local-right-panel" hidden={!showDesktopGrid && activePane !== 'right'}>
+              <PilotDetailPanel row={selectedRow} />
+            </aside>
+          ) : null}
+        </div>
+      </main>
 
       <footer className="local-bottom-strip" data-testid="local-bottom-strip">
         <details data-testid="diagnostics-expander">
@@ -326,7 +364,10 @@ export function LocalScreen({
                 : <li>No transport warnings.</li>}
           </ul>
         </details>
-        <span>Status: {analyzeState.status} · pilots: {rows.length} · unresolved: {unresolvedNames.length} · split {splitPositions.vertical}/{splitPositions.horizontal}</span>
+        <details data-testid="status-expander">
+          <summary>Status</summary>
+          <span>Status: {analyzeState.status} · pilots: {rows.length} · unresolved: {unresolvedNames.length} · {detailStatus} · split {splitPositions.vertical}/{splitPositions.horizontal}</span>
+        </details>
       </footer>
     </section>
   );
