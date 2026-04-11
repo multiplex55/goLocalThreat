@@ -45,14 +45,14 @@ export interface PilotThreatView {
   reasons: string[];
   tags: string[];
   notes: string | null;
-  kills: number | null;
-  losses: number | null;
-  dangerPercent: number | null;
-  soloPercent: number | null;
-  avgGangSize: number | null;
-  mainShip: string | null;
-  lastKill: string | null;
-  lastLoss: string | null;
+  kills: number | null | undefined;
+  losses: number | null | undefined;
+  dangerPercent: number | null | undefined;
+  soloPercent: number | null | undefined;
+  avgGangSize: number | null | undefined;
+  mainShip: string | null | undefined;
+  lastKill: string | null | undefined;
+  lastLoss: string | null | undefined;
   freshness: {
     source: string | null;
     dataAsOf: string | null;
