@@ -315,8 +315,8 @@ export function VirtualThreatTable({
                             {isPinned(row.id) ? '📌 ' : ''}
                             {rendered.warningBadgeText ? (
                               <span
-                                title={row.warnings?.filter((warning) => warning.displayTier === 'row_hint').map((warning) => warning.normalizedLabel ?? warning.message).slice(0, 2).join(', ') || 'Row warning'}
-                                aria-label="row warnings"
+                                aria-label="row warning indicator"
+                                data-testid="row-warning-indicator"
                               >
                                 {rendered.warningBadgeText}{' '}
                               </span>

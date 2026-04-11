@@ -63,4 +63,21 @@ describe('StatusBarWarnings', () => {
     expect(screen.getByTestId('bottom-strip-warnings')).toHaveTextContent('Recent activity incomplete: 3');
     expect(screen.getByTestId('bottom-strip-warnings')).not.toHaveTextContent('TRANSPORT_TIMEOUT');
   });
+
+  it('shows aggregate warning category counts in footer strip', () => {
+    const state = buildState();
+    if (!state.data?.diagnostics.warningDisplay) throw new Error('warningDisplay missing');
+    state.data.diagnostics.warningDisplay.global = [
+      { label: 'Recent activity incomplete', count: 3 },
+      { label: 'Pilot lookup incomplete', count: 2 },
+      { label: 'Partial timestamps', count: 1 },
+    ];
+
+    render(<LocalScreen pastedText="" analyzeState={state} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
+
+    const list = screen.getByTestId('bottom-strip-warnings');
+    expect(list).toHaveTextContent('Recent activity incomplete: 3');
+    expect(list).toHaveTextContent('Pilot lookup incomplete: 2');
+    expect(list).toHaveTextContent('Partial timestamps: 1');
+  });
 });

@@ -112,9 +112,9 @@ describe('LocalScreen integration', () => {
 
     const table = screen.getByTestId('threat-table');
     expect(within(table).getByText('Ace Hunter')).toBeInTheDocument();
-    expect(within(table).getByText('21')).toBeInTheDocument();
-    expect(within(table).getByText('4')).toBeInTheDocument();
-    expect(within(table).getByText('HIGH 82')).toBeInTheDocument();
+    expect(within(table).getByText('21/4')).toBeInTheDocument();
+    expect(within(table).getByText('high')).toBeInTheDocument();
+    expect(within(table).getByText('82')).toBeInTheDocument();
   });
 
   it('routes warnings to strip/detail/row badge in partial payload', () => {
@@ -152,9 +152,10 @@ describe('LocalScreen integration', () => {
     expect(screen.getByText(/global warnings: 1/i)).toBeInTheDocument();
     expect(screen.queryByTestId('detail-pane')).not.toHaveTextContent('18 timestamps were unavailable');
 
-    const betaLabel = screen.getByText((_, element) => element?.textContent === '⚠ Beta Pilot');
-    fireEvent.click(betaLabel);
-    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Pilot has partial killmail timestamps');
+    const betaLabel = screen.getByText('Beta Pilot');
+    fireEvent.click(betaLabel.closest('tr') ?? betaLabel);
+    expect(screen.getByLabelText('row warning indicator')).toBeInTheDocument();
+    expect(screen.getByTestId('detail-pane')).toHaveTextContent('None.');
 
     const betaRow = betaLabel.closest('tr');
     const alphaRow = screen.getByText('Alpha Pilot').closest('tr');
@@ -190,8 +191,9 @@ describe('LocalScreen integration', () => {
     expect(screen.queryByText('Unknown ship')).not.toBeInTheDocument();
   });
 
-  it('supports keyboard row selection and enter refresh selected', () => {
+  it('supports keyboard row selection and enter analyze shortcut', () => {
     const onRefreshSelected = vi.fn();
+    const onAnalyze = vi.fn();
     const data = buildAnalysisData({
       pilots: [
         buildPilot({ id: 'pilot-a', identity: { ...buildPilot().identity, characterName: 'Alpha Pilot' } }),
@@ -199,14 +201,15 @@ describe('LocalScreen integration', () => {
       ],
     });
 
-    render(<LocalScreen pastedText="Alpha\nBravo" analyzeState={buildState(data)} onPasteChange={() => {}} onAnalyze={() => {}} onRefreshSelected={onRefreshSelected} useLocalIntelV2Layout />);
+    render(<LocalScreen pastedText="Alpha\nBravo" analyzeState={buildState(data)} onPasteChange={() => {}} onAnalyze={onAnalyze} onRefreshSelected={onRefreshSelected} useLocalIntelV2Layout />);
     const workspace = screen.getByTestId('local-screen');
     workspace.focus();
 
     fireEvent.keyDown(workspace, { key: 'ArrowDown' });
     fireEvent.keyDown(workspace, { key: 'Enter' });
 
-    expect(onRefreshSelected).toHaveBeenCalledWith('pilot-b');
+    expect(onAnalyze).toHaveBeenCalledTimes(1);
+    expect(onRefreshSelected).not.toHaveBeenCalled();
   });
 
   it('keeps warning tiers visible without spamming all rows and defaults to compact mode', () => {
@@ -221,9 +224,43 @@ describe('LocalScreen integration', () => {
 
     render(<LocalScreen pastedText="Warned\nQuiet" analyzeState={buildState(data)} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
     expect(screen.getByTestId('density-toggle')).toHaveTextContent('Comfortable');
-    expect(screen.getByText((_, element) => element?.textContent === '⚠ Warned Pilot')).toBeInTheDocument();
-    expect(screen.getByLabelText('row warnings')).toHaveAttribute('title', 'Partial timestamps');
-    expect(screen.queryByText((_, element) => element?.textContent === '⚠ Quiet Pilot')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('threat-table')).getByText('Warned Pilot')).toBeInTheDocument();
+    const indicators = screen.getAllByLabelText('row warning indicator');
+    expect(indicators[0]).not.toHaveAttribute('title');
+    expect(indicators).toHaveLength(2);
+  });
+
+  it('routes row warning as glyph only without warning prose in table cell rendering', () => {
+    const verboseRowHint = buildWarning({
+      code: 'DETAIL_TIME_INVALID',
+      message: 'Killmail timestamps missing for this pilot in 18 entries',
+      normalizedLabel: 'Partial timestamps',
+      displayTier: 'row_hint' as const,
+    });
+    const data = buildAnalysisData({
+      pilots: [buildPilot({ id: 'pilot-1', identity: { ...buildPilot().identity, characterName: 'Glyph Pilot' }, warnings: [verboseRowHint] })],
+    });
+
+    render(<LocalScreen pastedText="Glyph Pilot" analyzeState={buildState(data)} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
+
+    const row = within(screen.getByTestId('threat-table')).getByText('Glyph Pilot').closest('tr');
+    expect(row).toBeInTheDocument();
+    expect(row).not.toHaveTextContent('Killmail timestamps missing');
+    expect(row).not.toHaveTextContent('Partial timestamps');
+  });
+
+  it('toggles density attributes to distinct comfortable vs compact rendering modes', () => {
+    const data = buildAnalysisData();
+    render(<LocalScreen pastedText="Alpha Pilot" analyzeState={buildState(data)} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
+
+    expect(screen.getByTestId('local-screen')).toHaveAttribute('data-density', 'compact');
+    const firstRow = screen.getByTestId('threat-table').querySelector('tbody tr');
+    expect(firstRow).toHaveClass('is-compact');
+
+    fireEvent.click(screen.getByTestId('density-toggle'));
+
+    expect(screen.getByTestId('local-screen')).toHaveAttribute('data-density', 'comfortable');
+    expect(firstRow).not.toHaveClass('is-compact');
   });
 
   it('acceptance: avoids zero timestamps and keeps varied non-low score distribution', () => {
@@ -237,8 +274,9 @@ describe('LocalScreen integration', () => {
     render(<LocalScreen pastedText="High\nMedium" analyzeState={buildState(data)} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
 
     expect(screen.queryByText(/0001-01-01/)).not.toBeInTheDocument();
-    expect(screen.getByText('11')).toBeInTheDocument();
-    expect(screen.getByText('HIGH 88')).toBeInTheDocument();
-    expect(screen.getByText('MED 55')).toBeInTheDocument();
+    const table = screen.getByTestId('threat-table');
+    expect(within(table).getByText('11/2')).toBeInTheDocument();
+    expect(within(table).getAllByText('high')[0]).toBeInTheDocument();
+    expect(within(table).getAllByText('medium')[0]).toBeInTheDocument();
   });
 });

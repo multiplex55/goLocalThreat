@@ -148,4 +148,14 @@ describe('ThreatTable render model', () => {
     expect(first.numericCells.soloPercent).toBe('—');
     expect(Object.values(first.numericCells)).not.toContain('0%');
   });
+
+  it('produces materially different row tokens for compact vs comfortable density', () => {
+    const compactRow = buildThreatTable([baseRow], null, true).rows[0]!.rendered;
+    const comfortableRow = buildThreatTable([baseRow], null, false).rows[0]!.rendered;
+
+    expect(compactRow.rowClassName).toContain('is-compact');
+    expect(comfortableRow.rowClassName).not.toContain('is-compact');
+    expect(compactRow.compact).toBe(true);
+    expect(comfortableRow.compact).toBe(false);
+  });
 });
