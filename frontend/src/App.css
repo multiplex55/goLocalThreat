@@ -73,6 +73,89 @@
   overflow: auto;
 }
 
+.pilot-detail-panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.pilot-detail-empty {
+  align-content: start;
+}
+
+.pilot-detail-empty-message {
+  margin: 0;
+  color: #b7c2d8;
+  font-size: 0.95rem;
+}
+
+.pilot-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 0.75rem;
+}
+
+.pilot-detail-header h3 {
+  margin: 0;
+}
+
+.pilot-detail-subtitle {
+  margin: 0.15rem 0 0;
+  color: #9ba8c2;
+  font-size: 0.85rem;
+}
+
+.pilot-detail-threat-badge {
+  border-radius: 10px;
+  padding: 0.4rem 0.65rem;
+  min-width: 88px;
+  text-align: center;
+  background: #2f3b50;
+}
+
+.pilot-detail-threat-badge strong {
+  display: block;
+  font-size: 1.25rem;
+}
+
+.pilot-detail-threat-badge[data-band='critical'] {
+  background: #7f1d1d;
+}
+
+.pilot-detail-threat-badge[data-band='high'] {
+  background: #92400e;
+}
+
+.pilot-detail-threat-badge[data-band='medium'] {
+  background: #334155;
+}
+
+.pilot-detail-threat-badge[data-band='low'] {
+  background: #14532d;
+}
+
+.pilot-detail-threat-band {
+  letter-spacing: 0.05em;
+  font-size: 0.75rem;
+}
+
+.pilot-detail-sections section {
+  border-top: 1px solid #2b3445;
+  padding-top: 0.55rem;
+}
+
+.pilot-detail-sections h4 {
+  margin: 0 0 0.35rem;
+}
+
+.pilot-detail-sections p {
+  margin: 0.2rem 0;
+}
+
+.pilot-detail-explanation-quality {
+  color: #cbd5e1;
+}
+
 .local-center-panel {
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr);

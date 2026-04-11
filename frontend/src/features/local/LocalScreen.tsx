@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { buildDetailPanel } from './DetailPanel';
+import { PilotDetailPanel } from './PilotDetailPanel';
 import { buildThreatTable } from './ThreatTable';
 import type { AnalyzeState } from './analyzeState';
 import type { ThreatRowView, ThreatTableColumn } from './types';
@@ -142,8 +142,6 @@ export function LocalScreen({
   }, [rows]);
 
   const selectedRow = useMemo(() => table.rows.find((row) => row.id === selectedRowId)?.row ?? null, [selectedRowId, table.rows]);
-  const detail = useMemo(() => buildDetailPanel(selectedRow), [selectedRow]);
-
   const copyName = useCallback(async (pilotName: string | null) => {
     if (!pilotName) {
       setActionMessage('No selected pilot to copy.');
@@ -307,27 +305,7 @@ export function LocalScreen({
             aria-label="Right detail and warnings pane"
             hidden={!showDesktopGrid && activePane !== 'right'}
           >
-            <h3 data-testid="detail-title">{detail.title}</h3>
-            <div data-testid="detail-pane">
-              <div data-testid="detail-semantic-badges">
-                {detail.semanticBadges.map((badge) => (
-                  <span key={badge.label} data-tone={badge.tone}>{badge.label}</span>
-                ))}
-              </div>
-              {detail.sections.map((section) => (
-                <p key={section.label}><strong>{section.label}:</strong> {section.value}</p>
-              ))}
-              <div data-testid="detail-warnings">
-                <strong>Warnings</strong>
-                <ul>
-                  {detail.warnings.map((warning, index) => (
-                    <li key={`${warning.text}-${index}`} style={{ opacity: warning.muted ? 0.6 : 1 }}>
-                      {warning.text}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
+            <PilotDetailPanel row={selectedRow} />
           </aside>
         ) : null}
       </div>
