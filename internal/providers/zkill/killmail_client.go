@@ -116,8 +116,19 @@ var zkillTimeFormats = []string{
 
 func parseKillmails(body []byte) ([]Killmail, int, error) {
 	var payload []struct {
-		KillmailID int64  `json:"killmail_id"`
-		Time       string `json:"zkb_time"`
+		KillmailID    int64  `json:"killmail_id"`
+		CanonicalTime string `json:"zkb_time"`
+		FallbackTime  string `json:"killmail_time"`
+		LegacyTime    string `json:"time"`
+		SystemID      int64  `json:"solar_system_id"`
+		Attackers     []struct {
+			CharacterID int64 `json:"character_id"`
+		} `json:"attackers"`
+		Victim struct {
+			CharacterID int64 `json:"character_id"`
+			ShipTypeID  int64 `json:"ship_type_id"`
+			DamageTaken int64 `json:"damage_taken"`
+		} `json:"victim"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return nil, 0, err
@@ -125,12 +136,26 @@ func parseKillmails(body []byte) ([]Killmail, int, error) {
 	out := make([]Killmail, 0, len(payload))
 	invalidTimeCount := 0
 	for _, p := range payload {
-		km := Killmail{KillID: p.KillmailID}
-		if p.Time == "" {
+		km := Killmail{
+			KillID:      p.KillmailID,
+			VictimID:    p.Victim.CharacterID,
+			Attackers:   len(p.Attackers),
+			ShipTypeID:  p.Victim.ShipTypeID,
+			SystemID:    p.SystemID,
+			DamageTaken: p.Victim.DamageTaken,
+		}
+		normalizedTime := p.CanonicalTime
+		if normalizedTime == "" {
+			normalizedTime = p.FallbackTime
+		}
+		if normalizedTime == "" {
+			normalizedTime = p.LegacyTime
+		}
+		if normalizedTime == "" {
 			km.OccurredAtInvalid = true
 			invalidTimeCount++
 		} else {
-			if ts, ok := parseZKillTime(p.Time); ok {
+			if ts, ok := parseZKillTime(normalizedTime); ok {
 				km.OccurredAt = ts
 			} else {
 				km.OccurredAtInvalid = true
