@@ -33,8 +33,46 @@ function buildState(): AnalyzeState {
         warnings: [],
       },
       pilots: [
-        { id: '10', name: 'Alpha', corporation: 'A Corp', alliance: 'A', score: 91, band: 'critical', reasons: ['FC', 'Hunter'], confidence: 0.9 },
-        { id: '11', name: 'Beta', corporation: 'B Corp', alliance: 'B', score: 52, band: 'medium', reasons: ['Stale Data'], confidence: 0.55 },
+        {
+          id: '10',
+          identity: { characterId: 10, characterName: 'Alpha', corporationName: 'A Corp', corporationTicker: null, allianceName: 'A', allianceTicker: null, portraitUrl: null, metadata: { corporationId: 1, allianceId: 1 } },
+          score: 91,
+          band: 'critical',
+          confidence: 0.9,
+          reasons: ['FC', 'Hunter'],
+          tags: ['FC', 'Hunter'],
+          notes: null,
+          kills: 7,
+          losses: 1,
+          dangerPercent: 80,
+          soloPercent: 50,
+          avgGangSize: 3,
+          mainShip: 'Sabre',
+          lastKill: '2026-01-01T00:00:00Z',
+          lastLoss: '2025-12-01T00:00:00Z',
+          freshness: { source: 'zkill', dataAsOf: '2026-01-01T00:00:00Z', isStale: false },
+          warnings: [],
+        },
+        {
+          id: '11',
+          identity: { characterId: 11, characterName: 'Beta', corporationName: 'B Corp', corporationTicker: null, allianceName: 'B', allianceTicker: null, portraitUrl: null, metadata: { corporationId: 2, allianceId: 2 } },
+          score: 52,
+          band: 'medium',
+          confidence: 0.55,
+          reasons: ['Stale Data'],
+          tags: ['Stale Data'],
+          notes: null,
+          kills: null,
+          losses: null,
+          dangerPercent: null,
+          soloPercent: null,
+          avgGangSize: null,
+          mainShip: null,
+          lastKill: null,
+          lastLoss: null,
+          freshness: { source: null, dataAsOf: null, isStale: null },
+          warnings: [],
+        },
       ],
     },
   };
@@ -88,9 +126,7 @@ describe('LocalScreen', () => {
     state.data!.diagnostics.globalWarnings = [{ code: 'RATE_LIMITED', message: 'provider slow', severity: 'warn', provider: 'esi', userVisible: true }];
     state.data!.diagnostics.severityCounts = { info: 0, warn: 1, error: 0 };
     state.data!.diagnostics.providerCounts = { esi: 1 };
-    state.data!.diagnostics.warningsByPilotId = {
-      '11': [{ code: 'DETAIL_TIME_INVALID', message: 'Beta had invalid time', severity: 'info', provider: 'zkill', userVisible: false }],
-    };
+    state.data!.pilots[1]!.warnings = [{ code: 'DETAIL_TIME_INVALID', message: 'Beta had invalid time', severity: 'info', provider: 'zkill', userVisible: false }];
 
     render(<LocalScreen pastedText="" analyzeState={state} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
     expect(screen.getByTestId('detail-warnings')).not.toHaveTextContent('Beta had invalid time');

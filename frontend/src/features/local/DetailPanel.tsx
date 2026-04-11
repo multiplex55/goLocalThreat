@@ -23,7 +23,7 @@ const SEMANTIC_TAGS: Record<string, DetailPanelView['semanticBadges'][number]> =
 };
 
 function toSemanticBadges(row: ThreatRowView): DetailPanelView['semanticBadges'] {
-  const sourceTags = [...row.tags, row.soloGangTendency, row.freshness, ...row.dataCompletenessMarkers];
+  const sourceTags = [...row.tags, row.soloGangTendency, row.freshness, ...row.dataCompletenessMarkers].filter((tag): tag is string => typeof tag === 'string' && tag.length > 0);
   const mapped = sourceTags
     .map((tag) => SEMANTIC_TAGS[tag.toLowerCase()])
     .filter((tag): tag is NonNullable<typeof tag> => Boolean(tag));
@@ -41,8 +41,8 @@ export function buildDetailPanel(row: ThreatRowView | null): DetailPanelView {
     };
   }
 
-  const corpDisplay = row.corpTicker ? `${row.corp} [${row.corpTicker}]` : row.corp;
-  const allianceDisplay = row.allianceTicker ? `${row.alliance} [${row.allianceTicker}]` : row.alliance;
+  const corpDisplay = row.corpTicker ? `${row.corp} [${row.corpTicker}]` : (row.corp || '—');
+  const allianceDisplay = row.allianceTicker ? `${row.alliance} [${row.allianceTicker}]` : (row.alliance || '—');
   const metadataState = row.orgMetadataPartial ? 'Partial (ID fallback)' : 'Fresh';
   const reasons = row.reasonBreakdown.length
     ? row.reasonBreakdown.map((entry) => `${entry.label} (+${entry.score})`).join(', ')
@@ -60,12 +60,12 @@ export function buildDetailPanel(row: ThreatRowView | null): DetailPanelView {
       { label: 'Alliance', value: allianceDisplay },
       { label: 'Threat', value: `${row.threatBand.toUpperCase()} · ${row.score}` },
       { label: 'Confidence', value: `${Math.round(row.confidence * 100)}%` },
-      { label: 'Kills/Losses', value: `${row.kills}/${row.losses}` },
+      { label: 'Kills/Losses', value: `${row.kills ?? '—'}/${row.losses ?? '—'}` },
       { label: 'Solo/Gang tendency', value: row.soloGangTendency },
-      { label: 'Danger %', value: `${row.dangerPercent}%` },
-      { label: 'Main recent ship', value: row.mainRecentShip },
+      { label: 'Danger %', value: row.dangerPercent === null ? '—' : `${row.dangerPercent}%` },
+      { label: 'Main recent ship', value: row.mainRecentShip ?? '—' },
       { label: 'Last activity', value: row.lastActivitySummary },
-      { label: 'Freshness', value: row.freshness },
+      { label: 'Freshness', value: row.freshness ?? '—' },
       { label: 'Why this score', value: reasons },
       { label: 'Data completeness', value: row.dataCompletenessMarkers.join('; ') || metadataState },
     ],
