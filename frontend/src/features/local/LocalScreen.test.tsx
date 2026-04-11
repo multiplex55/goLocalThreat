@@ -116,9 +116,10 @@ describe('LocalScreen', () => {
     render(<LocalScreen pastedText="" analyzeState={buildState()} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
 
     fireEvent.click(screen.getByText('Beta'));
-    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Threat: MEDIUM · 52');
+    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Band: MEDIUM');
+    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Score: 52');
     expect(screen.getByTestId('detail-pane')).toHaveTextContent('Confidence: 55%');
-    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Why this score: Stale Data (+30)');
+    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Stale Data (+30)');
   });
 
   it('warning list scoped only to selected pilot', () => {
@@ -138,16 +139,15 @@ describe('LocalScreen', () => {
   it('missing-data state messaging appears when confidence is reduced', () => {
     render(<LocalScreen pastedText="" analyzeState={buildState()} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
     fireEvent.click(screen.getByText('Beta'));
-    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Data completeness: Unknown due to partial killmail timestamps');
+    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Explanation quality: Low');
   });
 
-  it('semantic tag badges render based on mapped tag set', () => {
+  it('threat badge updates based on selected pilot band', () => {
     render(<LocalScreen pastedText="" analyzeState={buildState()} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
 
-    expect(screen.getByTestId('detail-semantic-badges')).toHaveTextContent('FC');
-    expect(screen.getByTestId('detail-semantic-badges')).toHaveTextContent('Hunter');
+    expect(screen.getByTestId('pilot-detail-threat-badge')).toHaveTextContent('CRITICAL');
     fireEvent.click(screen.getByText('Beta'));
-    expect(screen.getByTestId('detail-semantic-badges')).toHaveTextContent('Stale Data');
+    expect(screen.getByTestId('pilot-detail-threat-badge')).toHaveTextContent('MEDIUM');
   });
 
   it('double-click row toggles pinned state and pinned badge rendering', () => {
@@ -157,7 +157,7 @@ describe('LocalScreen', () => {
     fireEvent.doubleClick(betaCell);
     expect(screen.getByText('📌 Beta')).toBeInTheDocument();
     fireEvent.click(screen.getByText('📌 Beta'));
-    expect(screen.getByTestId('detail-semantic-badges')).toHaveTextContent('Pinned');
+    expect(screen.getByTestId('detail-title')).toHaveTextContent('Beta');
 
     fireEvent.doubleClick(screen.getByText('📌 Beta'));
     expect(screen.queryByText('📌 Beta')).not.toBeInTheDocument();
