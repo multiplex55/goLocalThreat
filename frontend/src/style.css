@@ -7,9 +7,31 @@ body,
   height: 100%;
 }
 
+:root {
+  /* Local threat UI theme tokens (dark + cyan accent pass). */
+  --color-bg-app: #07111d;
+  --color-surface-elevated: #0f1b2c;
+  --color-surface-panel: #132238;
+  --color-header-bg: #0b2136;
+  --color-accent-cyan: #4dd6ff;
+  --color-accent-blue: #5fa6ff;
+  --color-border-subtle: #24364a;
+  --color-divider-subtle: #1b2b3f;
+  --color-text-primary: #e9f2ff;
+  --color-text-secondary: #8ea4bc;
+  --color-text-muted: #7890a8;
+  --color-row-hover: #162b44;
+  --color-row-selected: #1f3e66;
+  --color-focus-ring: #78dbff;
+  --color-band-low: #1f9a6f;
+  --color-band-medium: #c38a27;
+  --color-band-high: #d45555;
+  --color-band-critical: #ee6c6c;
+}
+
 body {
-  background-color: #1b2636;
-  color: #ffffff;
+  background-color: var(--color-bg-app);
+  color: var(--color-text-primary);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu,
     Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   overflow: hidden;

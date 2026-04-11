@@ -12,12 +12,14 @@ export interface ThreatTableRowView {
   rowClassName: string;
   warningIcon: '⚠️' | null;
   warningIndicator: 'active' | 'muted' | 'none';
+  threatBandClassName: string;
   score: ReturnType<typeof buildScoreBadge> & { badgeText: string };
   identity: {
     avatarLabel: string;
     name: string;
     metadata: string;
     dimmed: boolean;
+    metadataClassName: string;
   };
   scoreCell: {
     align: 'right';
@@ -66,6 +68,10 @@ function formatThreatBand(level: ThreatLevel): 'LOW' | 'MED' | 'HIGH' {
   return 'HIGH';
 }
 
+function threatBandClassName(level: ThreatLevel): string {
+  return `threat-band--${level}`;
+}
+
 function dimmedText(value: string | null | undefined): string {
   const trimmed = value?.trim();
   return trimmed ? trimmed : PLACEHOLDER;
@@ -78,6 +84,7 @@ export function buildThreatTableRow(row: ThreatRowView, selected: boolean, compa
   const corp = dimmedText(row.corp);
   const alliance = dimmedText(row.alliance);
   const identityMetadata = `${corp} ${corpTicker}`.trim() + ' · ' + `${alliance} ${allianceTicker}`.trim();
+  const metadataClassName = corp === PLACEHOLDER || alliance === PLACEHOLDER ? 'threat-cell-meta-muted' : '';
 
   const tags = row.tags.map((tag) => buildTagPill(tag));
   const visible = tags.slice(0, MAX_VISIBLE_TAGS);
@@ -97,12 +104,14 @@ export function buildThreatTableRow(row: ThreatRowView, selected: boolean, compa
     rowClassName: ['threat-table-row', 'is-hoverable', selected ? 'is-selected' : '', compact ? 'is-compact' : ''].filter(Boolean).join(' '),
     warningIcon: activeWarnings ? '⚠️' : null,
     warningIndicator,
+    threatBandClassName: threatBandClassName(row.threatBand),
     score: { ...score, badgeText: scoreText },
     identity: {
       avatarLabel: name === PLACEHOLDER ? '?' : name.slice(0, 1).toUpperCase(),
       name,
       metadata: identityMetadata,
       dimmed: name === PLACEHOLDER,
+      metadataClassName,
     },
     scoreCell: {
       align: 'right',

@@ -12,7 +12,7 @@ export function toThreatRowView(pilot: PilotThreatView, status: ThreatRowView['s
     score: Math.max(5, 30 - (reasonIndex * 5)),
   }));
   const dataCompletenessMarkers = pilot.confidence < 0.7
-    ? ['Unknown due to partial killmail timestamps']
+    ? ['Partial timestamps']
     : [];
 
   return {
@@ -41,7 +41,7 @@ export function toThreatRowView(pilot: PilotThreatView, status: ThreatRowView['s
         : 'Balanced',
     lastKill: pilot.lastKill,
     lastLoss: pilot.lastLoss,
-    lastActivitySummary: `Last kill: ${pilot.lastKill ?? 'n/a'} · Last loss: ${pilot.lastLoss ?? 'n/a'}`,
+    lastActivitySummary: `Last kill: ${pilot.lastKill ?? '—'} · Last loss: ${pilot.lastLoss ?? '—'}`,
     freshness: pilot.freshness.dataAsOf,
     tags: pilot.tags,
     notes: pilot.notes ?? '',
