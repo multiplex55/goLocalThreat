@@ -37,13 +37,16 @@
 
 .local-layout-grid {
   display: grid;
-  grid-template-columns: clamp(140px, 16vw, 210px) minmax(0, 1fr) clamp(220px, 24vw, 280px);
+  grid-template-columns: minmax(0, 1fr) clamp(220px, 24vw, 280px);
   min-height: 0;
   overflow: hidden;
   gap: 0.5rem;
 }
 
-.local-left-panel,
+.local-layout-grid[data-roster-collapsed='true'] {
+  grid-template-columns: minmax(0, 1.1fr) clamp(220px, 22vw, 270px);
+}
+
 .local-center-panel,
 .local-right-panel,
 .local-bottom-strip {
@@ -53,31 +56,54 @@
   padding: 0.55rem;
 }
 
-.local-left-panel,
 .local-right-panel {
   overflow: auto;
   min-height: 0;
+}
+
+.local-center-panel {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+  gap: 0.4rem;
 }
 
 .roster-panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 0.35rem;
 }
 
-.local-center-panel {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  min-height: 0;
-  overflow: hidden;
-  gap: 0.4rem;
-}
-
-.local-center-controls {
+.local-center-controls,
+.local-filter-row {
   display: flex;
   gap: 0.35rem;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.local-center-controls {
+  padding-bottom: 0.2rem;
+}
+
+.roster-intake-drawer {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+  padding: 0.4rem;
+  background: var(--color-surface-elevated);
+}
+
+.roster-summary-chip {
+  border-radius: 999px;
+  padding-inline: 0.55rem;
+}
+
+.roster-drawer-expanded {
+  margin-top: 0.4rem;
+  display: grid;
+  gap: 0.35rem;
 }
 
 .columns-menu {
@@ -169,7 +195,7 @@
 
 .local-center-panel input,
 .local-center-panel button,
-.local-left-panel textarea,
+.roster-drawer-expanded textarea,
 .workspace-tabs button,
 .workspace-bar button {
   background: var(--color-surface-elevated);
@@ -192,10 +218,13 @@
   display: flex;
   justify-content: space-between;
   gap: 0.75rem;
-  align-items: center;
+  align-items: flex-start;
   padding-block: 0.35rem;
 }
 
 @media (max-width: 1439px) {
-  .local-layout-grid { grid-template-columns: minmax(0, 1fr); }
+  .local-layout-grid,
+  .local-layout-grid[data-roster-collapsed='true'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
