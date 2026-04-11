@@ -1,0 +1,34 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`workspace chrome regression > renders thin top chrome workspace bar 1`] = `
+<header
+  class="workspace-bar"
+  data-testid="workspace-bar"
+>
+  <strong>
+    goLocalThreat
+  </strong>
+  <nav
+    aria-label="Primary tabs"
+    class="workspace-tabs"
+    data-testid="primary-tabs"
+  >
+    <button
+      aria-current="page"
+      type="button"
+    >
+      Local
+    </button>
+    <button
+      type="button"
+    >
+      History
+    </button>
+    <button
+      type="button"
+    >
+      Settings
+    </button>
+  </nav>
+</header>
+`;
