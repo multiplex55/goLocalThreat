@@ -357,22 +357,30 @@ func (a *AppService) enrichPilots(ctx context.Context, identities []domain.Chara
 	summaries, statWarnings := a.fetchSummaryRows(ctx, identities)
 	warnings = append(warnings, statWarnings...)
 	for i := range pilots {
-		if row, ok := summaries[pilots[i].Identity.CharacterID]; ok {
-			pilots[i].Threat = row.ToThreatBreakdown()
-			dataAsOf := now
-			if !row.LastActivity.IsZero() {
-				dataAsOf = row.LastActivity.UTC()
-			}
-			pilots[i].Freshness = domain.FetchFreshness{Source: "zkill", DataAsOf: dataAsOf, IsStale: isStale(dataAsOf, a.settings.RefreshInterval)}
-		}
+		row := summaries[pilots[i].Identity.CharacterID]
+		mergedThreat, mergedFreshness, _ := mergePilotThreat(row, detailThreatEvidence{}, a.settings.RefreshInterval, now)
+		pilots[i].Threat = mergedThreat
+		pilots[i].Freshness = mergedFreshness
 	}
 	stageDurations["zkill_stats_ms"] = time.Since(statsStart).Milliseconds()
 	a.logger.Info("analyze stage complete", "analysis_id", analysisID, "stage", "zkill_stats", "duration_ms", stageDurations["zkill_stats_ms"], "record_count", len(summaries), "warning_count", len(statWarnings))
 
 	detailsStart := time.Now()
 	targetIDs := SelectDetailFetchTargets(pilots, 3, selectedPilotID, explicitRefresh)
-	detailWarnings := a.fetchDetails(ctx, pilots, targetIDs)
+	detailEvidence, detailWarnings := a.fetchDetails(ctx, pilots, targetIDs)
 	warnings = append(warnings, detailWarnings...)
+	for idx := range pilots {
+		charID := pilots[idx].Identity.CharacterID
+		summary := summaries[charID]
+		evidence := detailEvidence[charID]
+		mergedThreat, mergedFreshness, _ := mergePilotThreat(summary, evidence, a.settings.RefreshInterval, now)
+		pilots[idx].Threat = mergedThreat
+		if evidence.Killmails > 0 && !evidence.HasRecency {
+			// Recency degrades only for time-derived fields; preserve baseline summary freshness.
+			continue
+		}
+		pilots[idx].Freshness = mergedFreshness
+	}
 	stageDurations["zkill_detail_ms"] = time.Since(detailsStart).Milliseconds()
 	a.logger.Info("analyze stage complete", "analysis_id", analysisID, "stage", "zkill_detail", "duration_ms", stageDurations["zkill_detail_ms"], "target_count", len(targetIDs), "warning_count", len(detailWarnings))
 
@@ -424,8 +432,9 @@ func (a *AppService) fetchSummaryRows(ctx context.Context, identities []domain.C
 	return summaries, warnings
 }
 
-func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThreatRecord, targetIDs []int64) []domain.ProviderWarning {
+func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThreatRecord, targetIDs []int64) (map[int64]detailThreatEvidence, []domain.ProviderWarning) {
 	warnings := make([]domain.ProviderWarning, 0)
+	evidenceByID := make(map[int64]detailThreatEvidence, len(targetIDs))
 	byID := make(map[int64]int, len(pilots))
 	for i, p := range pilots {
 		byID[p.Identity.CharacterID] = i
@@ -461,55 +470,9 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 			if len(kms) == 0 {
 				return
 			}
-			var latest time.Time
-			var lastKill time.Time
-			var lastLoss time.Time
-			invalidOccurredAt := 0
-			missingOccurredAt := 0
-			validOccurredAt := 0
-			soloKills := 0
-			totalAttackers := 0
-			killmailKills := 0
-			shipCounts := map[int64]int{}
-			for _, km := range kms {
-				if km.OccurredAtInvalid {
-					invalidOccurredAt++
-					if km.OccurredAtIssue == zkill.KillmailTimeIssueMissing {
-						missingOccurredAt++
-					}
-				}
-				if km.VictimID == id {
-					if !km.OccurredAt.IsZero() {
-						occurredAt := km.OccurredAt.UTC()
-						if lastLoss.IsZero() || occurredAt.After(lastLoss) {
-							lastLoss = occurredAt
-						}
-					}
-				} else {
-					killmailKills++
-					if !km.OccurredAt.IsZero() {
-						occurredAt := km.OccurredAt.UTC()
-						if lastKill.IsZero() || occurredAt.After(lastKill) {
-							lastKill = occurredAt
-						}
-					}
-					if km.Attackers == 1 {
-						soloKills++
-					}
-					totalAttackers += max(1, km.Attackers)
-				}
-				if !km.OccurredAt.IsZero() {
-					validOccurredAt++
-					occurredAt := km.OccurredAt.UTC()
-					if latest.IsZero() || occurredAt.After(latest) {
-						latest = occurredAt
-					}
-				}
-				if km.ShipTypeID > 0 {
-					shipCounts[km.ShipTypeID]++
-				}
-			}
-			if invalidOccurredAt > 0 {
+			evidence := deriveDetailThreatEvidence(id, kms)
+			evidenceByID[id] = evidence
+			if evidence.InvalidOccurredAt > 0 {
 				ident := pilots[idx].Identity
 				warnings = append(warnings, domain.ProviderWarning{
 					Provider:      "zkill",
@@ -522,39 +485,13 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 					Category:      categoryForWarningCode("DETAIL_TIME_INVALID"),
 					Metadata: map[string]string{
 						"coalesceKey":          "zkill:detail_time_invalid",
-						"timestampFailures":    fmt.Sprintf("%d", invalidOccurredAt),
-						"timestampMissing":     fmt.Sprintf("%d", missingOccurredAt),
-						"timestampUnparseable": fmt.Sprintf("%d", invalidOccurredAt-missingOccurredAt),
+						"timestampFailures":    fmt.Sprintf("%d", evidence.InvalidOccurredAt),
+						"timestampMissing":     fmt.Sprintf("%d", evidence.MissingOccurredAt),
+						"timestampUnparseable": fmt.Sprintf("%d", evidence.InvalidOccurredAt-evidence.MissingOccurredAt),
 					},
 				})
 			}
-			if !lastKill.IsZero() {
-				pilots[idx].Threat.LastKill = lastKill
-			}
-			if !lastLoss.IsZero() {
-				pilots[idx].Threat.LastLoss = lastLoss
-			}
-			if killmailKills > 0 {
-				pilots[idx].Threat.SoloPercent = (float64(soloKills) / float64(killmailKills)) * 100
-				pilots[idx].Threat.AvgGangSize = float64(totalAttackers) / float64(killmailKills)
-			}
-			bestShipID := int64(0)
-			bestCount := 0
-			for shipID, count := range shipCounts {
-				if count > bestCount {
-					bestCount = count
-					bestShipID = shipID
-				}
-			}
-			if bestShipID > 0 {
-				pilots[idx].Threat.MainShip = fmt.Sprintf("ShipType #%d", bestShipID)
-			}
-			notes := []string{fmt.Sprintf("summary + detail killmails: %d", len(kms))}
-			if invalidOccurredAt > 0 {
-				notes = append(notes, fmt.Sprintf("partial timestamps: %d/%d killmails", invalidOccurredAt, len(kms)))
-			}
-			pilots[idx].Threat.Notes = strings.Join(notes, "; ")
-			if validOccurredAt == 0 {
+			if evidence.ValidOccurredAt == 0 {
 				ident := pilots[idx].Identity
 				warnings = append(warnings, domain.ProviderWarning{
 					Provider:      "zkill",
@@ -567,16 +504,14 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 					Category:      categoryForWarningCode("DETAIL_TIME_MISSING"),
 					Metadata: map[string]string{
 						"coalesceKey":       "zkill:detail_time_missing",
-						"timestampFailures": fmt.Sprintf("%d", invalidOccurredAt),
+						"timestampFailures": fmt.Sprintf("%d", evidence.InvalidOccurredAt),
 					},
 				})
-				return
 			}
-			pilots[idx].Freshness = domain.FetchFreshness{Source: "zkill_detail", DataAsOf: latest, IsStale: isStale(latest, a.settings.RefreshInterval)}
 		}()
 	}
 	wg.Wait()
-	return warnings
+	return evidenceByID, warnings
 }
 
 func isStale(dataAsOf time.Time, refreshIntervalMin int) bool {

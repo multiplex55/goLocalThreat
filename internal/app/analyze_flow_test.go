@@ -276,8 +276,8 @@ func TestAnalyzeFlowDetailInvalidTimestampsPreservesSummaryFreshness(t *testing.
 	if got := session.Pilots[0].Freshness.DataAsOf; !mustParseRFC3339(t, got).Equal(lastActivity) {
 		t.Fatalf("expected summary freshness %s to persist, got %s", lastActivity, got)
 	}
-	if session.Pilots[0].Threat.RecentKills != 3 || session.Pilots[0].Threat.RecentLosses != 1 {
-		t.Fatalf("expected summary kill/loss stats to survive, got %#v", session.Pilots[0].Threat)
+	if session.Pilots[0].Threat.RecentKills != 2 || session.Pilots[0].Threat.RecentLosses != 0 {
+		t.Fatalf("expected detail combat volume to survive despite invalid timestamps, got %#v", session.Pilots[0].Threat)
 	}
 	if session.Pilots[0].Threat.ThreatScore <= 0 || session.Pilots[0].Threat.ThreatBand == "" {
 		t.Fatalf("expected meaningful summary-driven threat score/band, got score=%.2f band=%q", session.Pilots[0].Threat.ThreatScore, session.Pilots[0].Threat.ThreatBand)
