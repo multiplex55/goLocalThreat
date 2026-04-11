@@ -501,7 +501,7 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 				warnings = append(warnings, domain.ProviderWarning{
 					Provider:      "zkill",
 					Code:          "DETAIL_TIME_INVALID",
-					Message:       fmt.Sprintf("%s had %d detail killmails with invalid/missing zkb_time.", ident.Name, invalidOccurredAt),
+					Message:       warningMessageForCode("DETAIL_TIME_INVALID", ""),
 					CharacterID:   int64Ptr(ident.CharacterID),
 					CharacterName: ident.Name,
 					Severity:      severityForWarningCode("DETAIL_TIME_INVALID"),
@@ -536,7 +536,7 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 				warnings = append(warnings, domain.ProviderWarning{
 					Provider:      "zkill",
 					Code:          "DETAIL_TIME_MISSING",
-					Message:       fmt.Sprintf("%s detail killmails are missing occurredAt timestamps.", ident.Name),
+					Message:       warningMessageForCode("DETAIL_TIME_MISSING", ""),
 					CharacterID:   int64Ptr(ident.CharacterID),
 					CharacterName: ident.Name,
 					Severity:      severityForWarningCode("DETAIL_TIME_MISSING"),
@@ -595,12 +595,12 @@ func newWarning(provider string, code string, summary string, rawMessage string,
 	warning := domain.ProviderWarning{
 		Provider:    provider,
 		Code:        code,
-		Message:     summary,
+		Message:     warningMessageForCode(code, summary),
 		Severity:    severityForWarningCode(code),
 		UserVisible: userVisibleForWarningCode(code),
 		Category:    categoryForWarningCode(code),
 	}
-	if rawMessage != "" {
+	if rawMessage != "" && warning.Message == summary {
 		warning.Message = fmt.Sprintf("%s (raw: %s)", summary, rawMessage)
 	}
 	if ident != nil {
@@ -625,16 +625,27 @@ func severityForWarningCode(code string) string {
 	}
 }
 
+func warningMessageForCode(code string, fallback string) string {
+	switch code {
+	case "DETAIL_TIME_INVALID":
+		return "Partial zKill timestamps"
+	case "DETAIL_TIME_MISSING":
+		return "Recent activity timing incomplete"
+	default:
+		return fallback
+	}
+}
+
 func categoryForWarningCode(code string) string {
 	switch code {
 	case "RATE_LIMITED":
-		return "rate-limit"
+		return "provider"
 	case "DETAIL_TIME_INVALID", "DETAIL_TIME_MISSING", "UNRESOLVED_NAME", "IDENTITY_PARTIAL":
-		return "data-quality"
+		return "data_quality"
 	case "RESOLVE_FAILED", "SUMMARY_FAILED", "DETAIL_FAILED":
 		return "transport"
 	default:
-		return "general"
+		return "provider"
 	}
 }
 
@@ -715,7 +726,7 @@ func (a *AppService) RefreshPilot(sessionID string, characterID int64) (PilotThr
 	a.mu.Unlock()
 	for _, p := range pilots {
 		if p.Identity.CharacterID == characterID {
-			return toPilotDTO(p), nil
+			return toPilotDTO(p, nil), nil
 		}
 	}
 	return PilotThreatRecordDTO{}, fmt.Errorf("pilot %d not found in session %s", characterID, sessionID)

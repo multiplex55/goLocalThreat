@@ -40,6 +40,7 @@ type ParseSourceDTO struct {
 
 type PilotThreatRecordDTO struct {
 	Identity    domain.CharacterIdentity `json:"identity"`
+	Warnings    []domain.ProviderWarning `json:"warnings,omitempty"`
 	Threat      domain.ThreatBreakdown   `json:"threat"`
 	Pilot       string                   `json:"pilot"`
 	Corp        string                   `json:"corp"`
@@ -67,9 +68,18 @@ type FetchFreshnessDTO struct {
 }
 
 func toAnalysisSessionDTO(in domain.AnalysisSession) AnalysisSessionDTO {
+	warningsByPilotID := make(map[int64][]domain.ProviderWarning)
+	for _, warning := range in.Warnings {
+		if warning.CharacterID == nil {
+			continue
+		}
+		id := *warning.CharacterID
+		warningsByPilotID[id] = append(warningsByPilotID[id], warning)
+	}
+
 	pilots := make([]PilotThreatRecordDTO, 0, len(in.Pilots))
 	for _, pilot := range in.Pilots {
-		pilots = append(pilots, toPilotDTO(pilot))
+		pilots = append(pilots, toPilotDTO(pilot, warningsByPilotID[pilot.Identity.CharacterID]))
 	}
 	return AnalysisSessionDTO{
 		SessionID:              in.SessionID,
@@ -103,7 +113,7 @@ func toParseSourceDTO(in domain.ParseResult) ParseSourceDTO {
 	}
 }
 
-func toPilotDTO(in domain.PilotThreatRecord) PilotThreatRecordDTO {
+func toPilotDTO(in domain.PilotThreatRecord, warnings []domain.ProviderWarning) PilotThreatRecordDTO {
 	corp := in.Identity.CorpName
 	if corp == "" && in.Identity.CorpID > 0 {
 		corp = "Corp #" + fmt.Sprint(in.Identity.CorpID)
@@ -114,6 +124,7 @@ func toPilotDTO(in domain.PilotThreatRecord) PilotThreatRecordDTO {
 	}
 	return PilotThreatRecordDTO{
 		Identity:    in.Identity,
+		Warnings:    append([]domain.ProviderWarning(nil), warnings...),
 		Threat:      in.Threat,
 		Pilot:       in.Identity.Name,
 		Corp:        corp,

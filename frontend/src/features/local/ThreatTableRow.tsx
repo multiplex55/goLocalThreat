@@ -11,6 +11,7 @@ export interface ThreatTableRowView {
   compact: boolean;
   rowClassName: string;
   warningIcon: '⚠️' | null;
+  warningIndicator: 'active' | 'muted' | 'none';
   score: ReturnType<typeof buildScoreBadge> & { badgeText: string };
   identity: {
     avatarLabel: string;
@@ -41,6 +42,10 @@ export interface ThreatTableRowView {
 
 function hasWarnings(row: ThreatRowView): boolean {
   return (row.warnings ?? []).some((warning) => warning.userVisible !== false && warning.severity !== 'info');
+}
+
+function hasMutedWarnings(row: ThreatRowView): boolean {
+  return (row.warnings ?? []).some((warning) => warning.userVisible === false || warning.severity === 'info');
 }
 
 function formatPlainNumber(value: number | null): string {
@@ -81,13 +86,17 @@ export function buildThreatTableRow(row: ThreatRowView, selected: boolean, compa
   const score = buildScoreBadge(row.score);
   const scoreBand = formatThreatBand(row.threatBand);
   const scoreText = `${scoreBand} ${row.score}`;
+  const activeWarnings = hasWarnings(row);
+  const mutedWarnings = hasMutedWarnings(row);
+  const warningIndicator: ThreatTableRowView['warningIndicator'] = activeWarnings ? 'active' : (mutedWarnings ? 'muted' : 'none');
 
   return {
     id: row.id,
     selected,
     compact,
     rowClassName: ['threat-table-row', 'is-hoverable', selected ? 'is-selected' : '', compact ? 'is-compact' : ''].filter(Boolean).join(' '),
-    warningIcon: hasWarnings(row) ? '⚠️' : null,
+    warningIcon: activeWarnings ? '⚠️' : null,
+    warningIndicator,
     score: { ...score, badgeText: scoreText },
     identity: {
       avatarLabel: name === PLACEHOLDER ? '?' : name.slice(0, 1).toUpperCase(),

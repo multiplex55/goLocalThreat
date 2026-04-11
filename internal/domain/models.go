@@ -205,9 +205,9 @@ type ProviderWarning struct {
 	Message       string `json:"message"`
 	CharacterID   *int64 `json:"characterId,omitempty"`
 	CharacterName string `json:"characterName,omitempty"`
-	Severity      string `json:"severity,omitempty"`
+	Severity      string `json:"severity"`
 	UserVisible   bool   `json:"userVisible"`
-	Category      string `json:"category,omitempty"`
+	Category      string `json:"category"`
 }
 
 func (p ProviderWarning) Validate() error {
@@ -216,6 +216,15 @@ func (p ProviderWarning) Validate() error {
 	}
 	if p.Message == "" {
 		return errors.New("message is required")
+	}
+	if p.Severity == "" {
+		return errors.New("severity is required")
+	}
+	if p.Category == "" {
+		return errors.New("category is required")
+	}
+	if p.CharacterName != "" && p.CharacterID == nil {
+		return errors.New("characterId is required when characterName is provided")
 	}
 	return nil
 }

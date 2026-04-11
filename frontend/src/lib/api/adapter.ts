@@ -21,7 +21,7 @@ function toWarningView(warning: AppService.ParseWarningDTO): ParseWarningView {
     characterName: warning.characterName,
     severity: warning.severity ?? 'info',
     userVisible: warning.userVisible ?? true,
-    category: warning.category,
+    category: warning.category ?? 'provider',
   };
 }
 
@@ -115,6 +115,10 @@ export function toAnalysisSessionView(dto: AppService.AnalysisSessionDTO): Analy
     acc[provider] = (acc[provider] ?? 0) + 1;
     return acc;
   }, {});
+  const warningCodeCounts = globalWarnings.reduce<Record<string, number>>((acc, warning) => {
+    acc[warning.code] = (acc[warning.code] ?? 0) + 1;
+    return acc;
+  }, {});
 
   return {
     sessionId: dto.sessionId,
@@ -130,6 +134,7 @@ export function toAnalysisSessionView(dto: AppService.AnalysisSessionDTO): Analy
       warnings,
       globalWarnings,
       warningsByPilotId,
+      warningCodeCounts,
       severityCounts,
       providerCounts,
     },

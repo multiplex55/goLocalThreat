@@ -52,6 +52,9 @@ export interface LocalStatusView {
   cache: 'hot' | 'warming' | 'cold';
   rate: 'ok' | 'limited' | 'blocked';
   updatedAt: string;
+  diagnostics?: {
+    partialKillmailTimestamps?: number;
+  };
 }
 
 export interface LocalScreenViewModel {

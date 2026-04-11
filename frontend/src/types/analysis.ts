@@ -4,9 +4,9 @@ export interface ParseWarningView {
   message: string;
   characterId?: number;
   characterName?: string;
-  severity?: 'info' | 'warn' | 'error';
-  userVisible?: boolean;
-  category?: string;
+  severity: 'info' | 'warn' | 'error';
+  userVisible: boolean;
+  category: string;
 }
 
 export interface ParseSummaryView {
@@ -72,6 +72,7 @@ export interface AnalysisSessionView {
     warnings: ParseWarningView[];
     globalWarnings: ParseWarningView[];
     warningsByPilotId: Record<string, ParseWarningView[]>;
+    warningCodeCounts: Record<string, number>;
     severityCounts: Record<'info' | 'warn' | 'error', number>;
     providerCounts: Record<string, number>;
   };
