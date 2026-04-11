@@ -35,6 +35,7 @@ export interface ThreatRowView {
   status: 'ready' | 'provisional' | 'loading';
   dataCompletenessMarkers: string[];
   warnings?: Array<{
+    code?: string;
     provider?: string;
     severity?: 'info' | 'warn' | 'error';
     userVisible?: boolean;

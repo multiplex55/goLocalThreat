@@ -114,8 +114,7 @@ describe('LocalScreen integration', () => {
     expect(within(table).getByText('Ace Hunter')).toBeInTheDocument();
     expect(within(table).getByText('21')).toBeInTheDocument();
     expect(within(table).getByText('4')).toBeInTheDocument();
-    expect(within(table).getByText('84%')).toBeInTheDocument();
-    expect(within(table).getByText('42%')).toBeInTheDocument();
+    expect(within(table).getByText('HIGH 82')).toBeInTheDocument();
   });
 
   it('routes warnings to strip/detail/row badge in partial payload', () => {
@@ -153,10 +152,11 @@ describe('LocalScreen integration', () => {
     expect(screen.getByText(/global warnings: 1/i)).toBeInTheDocument();
     expect(screen.queryByTestId('detail-pane')).not.toHaveTextContent('18 timestamps were unavailable');
 
-    fireEvent.click(screen.getByText('⚠️ Beta Pilot'));
+    const betaLabel = screen.getByText((_, element) => element?.textContent === '⚠ Beta Pilot');
+    fireEvent.click(betaLabel);
     expect(screen.getByTestId('detail-pane')).toHaveTextContent('Pilot has partial killmail timestamps');
 
-    const betaRow = screen.getByText('⚠️ Beta Pilot').closest('tr');
+    const betaRow = betaLabel.closest('tr');
     const alphaRow = screen.getByText('Alpha Pilot').closest('tr');
     expect(betaRow).toHaveAttribute('data-selected', 'true');
     expect(alphaRow).not.toHaveAttribute('data-selected', 'true');

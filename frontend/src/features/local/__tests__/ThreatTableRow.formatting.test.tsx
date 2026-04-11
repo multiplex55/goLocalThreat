@@ -59,4 +59,14 @@ describe('ThreatTableRow formatting', () => {
     expect(row.cells[4]).toBe('—');
     expect(row.cells.join(' ')).not.toContain('0001-01-01');
   });
+
+  it('truncates long identity and metadata cells', () => {
+    const row = buildThreatTableRow({
+      ...blankRow,
+      pilotName: 'VeryLongPilotNameThatShouldBeTruncatedForTableCells',
+      corp: 'VeryLongCorporationNameThatShouldBeTruncated',
+    }, false, false);
+    expect(row.identity.name.endsWith('…')).toBe(true);
+    expect(row.cells[1].endsWith('…')).toBe(true);
+  });
 });

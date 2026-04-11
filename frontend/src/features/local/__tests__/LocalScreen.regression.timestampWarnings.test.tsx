@@ -21,9 +21,10 @@ describe('LocalScreen regression: timestamp warnings placement', () => {
     expect(screen.getByTestId('diagnostic-partial-timestamps-count')).toHaveTextContent('18');
     expect(screen.getByTestId('detail-pane')).not.toHaveTextContent('Timestamp warning 1');
 
-    fireEvent.click(screen.getByText('⚠️ Pilot 7'));
+    const pilotRowLabel = screen.getByText((_, element) => element?.textContent === '⚠ Pilot 7');
+    fireEvent.click(pilotRowLabel);
     expect(screen.getByTestId('detail-title')).toHaveTextContent('Pilot 7');
-    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Timestamp warning 1000');
-    expect(screen.getByText('⚠️ Pilot 7').closest('tr')).toHaveAttribute('data-selected', 'true');
+    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Partial killmail timestamps detected');
+    expect(pilotRowLabel.closest('tr')).toHaveAttribute('data-selected', 'true');
   });
 });

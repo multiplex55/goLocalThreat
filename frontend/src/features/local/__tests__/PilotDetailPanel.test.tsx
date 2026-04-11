@@ -82,6 +82,7 @@ describe('PilotDetailPanel in LocalScreen', () => {
     expect(pane).toHaveTextContent('Combat stats');
     expect(pane).toHaveTextContent('Activity timing');
     expect(pane).toHaveTextContent('Why this score');
+    expect(pane).toHaveTextContent('Data quality');
     expect(pane).toHaveTextContent('Notes and pilot-specific warnings');
   });
 
@@ -100,9 +101,9 @@ describe('PilotDetailPanel in LocalScreen', () => {
     const detailPane = screen.getByTestId('detail-pane');
     expect(within(detailPane).getByTestId('detail-reasons')).toHaveTextContent('FC (+30)');
     expect(within(detailPane).getByTestId('detail-warnings')).toHaveTextContent('Pilot-specific warning');
+    expect(within(detailPane).getByTestId('detail-data-quality')).toHaveTextContent('Partial killmail timestamps detected');
 
     expect(screen.getByTestId('local-center-panel')).not.toHaveTextContent('Pilot-specific warning');
     expect(screen.getByTestId('local-center-panel')).not.toHaveTextContent('FC (+30)');
   });
 });
-
