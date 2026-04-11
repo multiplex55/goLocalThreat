@@ -31,7 +31,9 @@ export function PilotDetailPanel({ row }: PilotDetailPanelProps) {
 
   const warningRows = row.warnings ?? [];
   const explanationQuality = getExplanationQuality(row);
-  const hasPartialTimestampMarker = row.dataCompletenessMarkers.includes('Partial timestamps');
+  const qualityMarkers = row.dataCompletenessMarkers ?? [];
+  const hasPartialTimestampMarker = qualityMarkers.includes('Partial timestamps');
+  const displayedWarnings = warningRows.filter((warning) => !(hasPartialTimestampMarker && /timestamp/i.test(warning.message)));
 
   return (
     <section className="pilot-detail-panel" data-testid="pilot-detail-panel" aria-live="polite">
@@ -74,16 +76,14 @@ export function PilotDetailPanel({ row }: PilotDetailPanelProps) {
           <h4>Activity timing</h4>
           <p>{formatActivity(row.lastKill, row.lastLoss)}</p>
           <p><strong>Freshness:</strong> {row.freshness ?? '—'}</p>
-          {hasPartialTimestampMarker ? (
-            <p className="threat-cell-meta-muted">
-              Killmail event timestamps are partially unavailable; timing-based indicators may be understated.
-            </p>
-          ) : null}
         </section>
 
         <section>
           <h4>Why this score</h4>
           <p className="pilot-detail-explanation-quality"><strong>Explanation quality:</strong> {explanationQuality}</p>
+          <p>
+            Threat score combines combat activity, ship/risk profile, recency, and confidence signals from the latest provider responses.
+          </p>
           <ul data-testid="detail-reasons">
             {row.reasonBreakdown.length ? row.reasonBreakdown.map((entry) => (
               <li key={`${entry.label}-${entry.score}`}>{entry.label} (+{entry.score})</li>
@@ -92,10 +92,22 @@ export function PilotDetailPanel({ row }: PilotDetailPanelProps) {
         </section>
 
         <section>
+          <h4>Data quality</h4>
+          <ul data-testid="detail-data-quality">
+            {hasPartialTimestampMarker ? <li>Partial killmail timestamps detected; timing-based metrics may be understated.</li> : null}
+            {qualityMarkers.filter((marker) => marker !== 'Partial timestamps').map((marker) => (
+              <li key={marker}>{marker}</li>
+            ))}
+            {!qualityMarkers.length ? <li>No data quality warnings.</li> : null}
+            {!row.reasonBreakdown.length ? <li>Score likely derived from summary-level signals due to limited detail evidence.</li> : null}
+          </ul>
+        </section>
+
+        <section>
           <h4>Notes and pilot-specific warnings</h4>
           <p><strong>Notes:</strong> {row.notes || '—'}</p>
           <ul data-testid="detail-warnings">
-            {warningRows.length ? warningRows.map((warning, index) => (
+            {displayedWarnings.length ? displayedWarnings.map((warning, index) => (
               <li key={`${warning.message}-${index}`} style={{ opacity: warning.severity === 'info' || warning.userVisible === false ? 0.7 : 1 }}>
                 {warning.message}
               </li>

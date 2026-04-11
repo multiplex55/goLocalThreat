@@ -4,6 +4,7 @@ import type { ThreatLevel, ThreatRowView } from './types';
 
 const PLACEHOLDER = '—';
 const MAX_VISIBLE_TAGS = 3;
+const MAX_TEXT_CELL = 28;
 
 export interface ThreatTableRowView {
   id: string;
@@ -12,6 +13,7 @@ export interface ThreatTableRowView {
   rowClassName: string;
   warningIcon: '⚠️' | null;
   warningIndicator: 'active' | 'muted' | 'none';
+  warningBadgeText: '⚠' | 'Partial' | null;
   threatBandClassName: string;
   score: ReturnType<typeof buildScoreBadge> & { badgeText: string };
   identity: {
@@ -77,6 +79,11 @@ function dimmedText(value: string | null | undefined): string {
   return trimmed ? trimmed : PLACEHOLDER;
 }
 
+function truncateCellText(value: string): string {
+  if (value === PLACEHOLDER || value.length <= MAX_TEXT_CELL) return value;
+  return `${value.slice(0, MAX_TEXT_CELL - 1)}…`;
+}
+
 function isZeroTimestamp(value: string | null | undefined): boolean {
   const trimmed = value?.trim();
   if (!trimmed) return false;
@@ -107,6 +114,7 @@ export function buildThreatTableRow(row: ThreatRowView, selected: boolean, compa
   const activeWarnings = hasWarnings(row);
   const mutedWarnings = hasMutedWarnings(row);
   const warningIndicator: ThreatTableRowView['warningIndicator'] = activeWarnings ? 'active' : (mutedWarnings ? 'muted' : 'none');
+  const warningBadgeText: ThreatTableRowView['warningBadgeText'] = activeWarnings ? '⚠' : (mutedWarnings ? 'Partial' : null);
 
   return {
     id: row.id,
@@ -115,11 +123,12 @@ export function buildThreatTableRow(row: ThreatRowView, selected: boolean, compa
     rowClassName: ['threat-table-row', 'is-hoverable', selected ? 'is-selected' : '', compact ? 'is-compact' : ''].filter(Boolean).join(' '),
     warningIcon: activeWarnings ? '⚠️' : null,
     warningIndicator,
+    warningBadgeText,
     threatBandClassName: threatBandClassName(row.threatBand),
     score: { ...score, badgeText: scoreText },
     identity: {
       avatarLabel: name === PLACEHOLDER ? '?' : name.slice(0, 1).toUpperCase(),
-      name,
+      name: truncateCellText(name),
       metadata: identityMetadata,
       dimmed: name === PLACEHOLDER,
       metadataClassName,
@@ -140,7 +149,7 @@ export function buildThreatTableRow(row: ThreatRowView, selected: boolean, compa
       overflowCount: overflow.length,
       overflowTooltip: overflow.length ? overflow.map((tag) => tag.label).join(', ') : null,
     },
-    cells: [name, corp, alliance, dimmedText(row.mainShip), dimmedTimestamp(row.lastSeen)],
+    cells: [truncateCellText(name), truncateCellText(corp), truncateCellText(alliance), truncateCellText(dimmedText(row.mainShip)), truncateCellText(dimmedTimestamp(row.lastSeen))],
     tags,
     virtualizationKey: `row-${row.id}`,
   };

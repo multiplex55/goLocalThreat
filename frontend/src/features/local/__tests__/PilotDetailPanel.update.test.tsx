@@ -83,7 +83,7 @@ describe('PilotDetailPanel selection updates', () => {
     expect(screen.getByTestId('detail-title')).toHaveTextContent('Beta');
     expect(screen.getByTestId('detail-pane')).toHaveTextContent('Beta note');
     expect(screen.getByTestId('detail-pane')).toHaveTextContent('Beta warning');
+    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Threat score combines combat activity');
     expect(screen.getByTestId('detail-pane')).not.toHaveTextContent('Alpha note');
   });
 });
-

@@ -11,9 +11,11 @@ export function toThreatRowView(pilot: PilotThreatView, status: ThreatRowView['s
     label: reason,
     score: Math.max(5, 30 - (reasonIndex * 5)),
   }));
-  const dataCompletenessMarkers = pilot.confidence < 0.7
-    ? ['Partial timestamps']
-    : [];
+  const hasPartialTimestampWarning = pilot.warnings.some((warning) => warning.code === 'DETAIL_TIME_INVALID');
+  const dataCompletenessMarkers = [
+    ...(hasPartialTimestampWarning ? ['Partial timestamps'] : []),
+    ...(!pilot.reasons.length ? ['Derived from summary signals'] : []),
+  ];
 
   return {
     id: pilot.id,
@@ -49,6 +51,7 @@ export function toThreatRowView(pilot: PilotThreatView, status: ThreatRowView['s
     status,
     dataCompletenessMarkers,
     warnings: pilot.warnings.map((warning) => ({
+      code: warning.code,
       provider: warning.provider,
       severity: warning.severity,
       userVisible: warning.userVisible,

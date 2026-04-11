@@ -42,17 +42,22 @@ function isZeroTimestamp(value: string): boolean {
   return value === '0001-01-01T00:00:00Z' || value.startsWith('0001-01-01');
 }
 
+function truncateDisplay(value: string, max = 28): string {
+  if (value === '—' || value.length <= max) return value;
+  return `${value.slice(0, max - 1)}…`;
+}
+
 function renderTableCellValue(value: unknown, column: ThreatTableColumn): string {
   if (Array.isArray(value)) {
     const joined = value.join(', ').trim();
-    return joined || '—';
+    return truncateDisplay(joined || '—');
   }
   if (value == null) return '—';
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (!trimmed) return '—';
     if ((column === 'lastKill' || column === 'lastLoss') && isZeroTimestamp(trimmed)) return '—';
-    return trimmed;
+    return truncateDisplay(trimmed);
   }
   return String(value);
 }
@@ -323,7 +328,8 @@ export function LocalScreen({
                         return (
                           <td key={h.column}>
                             {pinnedRowIds.has(tableRow.id) ? '📌 ' : ''}
-                            {renderedRow.warningIcon ? `${renderedRow.warningIcon} ` : ''}
+                            {renderedRow.warningBadgeText ? <span className="threat-row-warning-badge">{renderedRow.warningBadgeText}</span> : null}
+                            {renderedRow.warningBadgeText ? ' ' : ''}
                             {renderedRow.identity.name}
                           </td>
                         );
