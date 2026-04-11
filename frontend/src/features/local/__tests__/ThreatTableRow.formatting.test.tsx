@@ -39,6 +39,8 @@ describe('ThreatTableRow formatting', () => {
     expect(row.cells).toEqual(['—', '—', '—', '—', '—']);
     expect(row.numericCells.kills).toBe('—');
     expect(row.numericCells.dangerPercent).toBe('—');
+    expect(row.numericCells.dangerPercent).not.toBe('0%');
+    expect(row.numericCells.soloPercent).not.toBe('0%');
     expect(row.score.badgeText).toBe('LOW 9');
   });
 

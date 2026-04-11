@@ -129,4 +129,23 @@ describe('ThreatTable render model', () => {
     expect(first.tagCell.overflowCount).toBe(1);
     expect(first.tagCell.overflowTooltip).toContain('Scout');
   });
+
+  it('renders unknown metrics as em dash without synthetic zero values', () => {
+    const rowWithUnknowns: ThreatRowView = {
+      ...baseRow,
+      mainShip: null,
+      dangerPercent: null,
+      soloPercent: null,
+      avgGangSize: null,
+      lastSeen: null,
+    };
+    const table = buildThreatTable([rowWithUnknowns], null, false);
+    const first = table.rows[0]!.rendered;
+
+    expect(first.cells[3]).toBe('—');
+    expect(first.cells[4]).toBe('—');
+    expect(first.numericCells.dangerPercent).toBe('—');
+    expect(first.numericCells.soloPercent).toBe('—');
+    expect(Object.values(first.numericCells)).not.toContain('0%');
+  });
 });
