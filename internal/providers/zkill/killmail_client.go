@@ -144,7 +144,9 @@ func parseKillmails(body []byte) ([]Killmail, int, error) {
 			SystemID:    p.SystemID,
 			DamageTaken: p.Victim.DamageTaken,
 		}
-		if ts, issue := parseKillmailOccurredAt(p.CanonicalTime, p.FallbackTime, p.LegacyTime); issue == KillmailTimeIssueNone {
+		ts, issue, class := parseKillmailOccurredAt(p.CanonicalTime, p.FallbackTime, p.LegacyTime)
+		km.TimestampClass = class
+		if issue == KillmailTimeIssueNone {
 			km.OccurredAt = ts
 		} else {
 			km.OccurredAtInvalid = true
@@ -156,7 +158,7 @@ func parseKillmails(body []byte) ([]Killmail, int, error) {
 	return out, invalidTimeCount, nil
 }
 
-func parseKillmailOccurredAt(canonicalTime string, fallbackTime string, legacyTime string) (time.Time, KillmailTimeIssue) {
+func parseKillmailOccurredAt(canonicalTime string, fallbackTime string, legacyTime string) (time.Time, KillmailTimeIssue, KillmailTimestampClass) {
 	timestampFields := []string{canonicalTime, fallbackTime, legacyTime}
 	hadValue := false
 	for _, raw := range timestampFields {
@@ -165,13 +167,13 @@ func parseKillmailOccurredAt(canonicalTime string, fallbackTime string, legacyTi
 		}
 		hadValue = true
 		if ts, ok := parseZKillTime(raw); ok {
-			return ts, KillmailTimeIssueNone
+			return ts, KillmailTimeIssueNone, KillmailTimestampValid
 		}
 	}
 	if !hadValue {
-		return time.Time{}, KillmailTimeIssueMissing
+		return time.Time{}, KillmailTimeIssueMissing, KillmailTimestampMissing
 	}
-	return time.Time{}, KillmailTimeIssueInvalid
+	return time.Time{}, KillmailTimeIssueInvalid, KillmailTimestampInvalid
 }
 
 func parseZKillTime(raw string) (time.Time, bool) {

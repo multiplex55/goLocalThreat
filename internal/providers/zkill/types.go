@@ -71,11 +71,20 @@ const (
 	KillmailTimeIssueInvalid KillmailTimeIssue = "invalid"
 )
 
+type KillmailTimestampClass string
+
+const (
+	KillmailTimestampValid   KillmailTimestampClass = "valid"
+	KillmailTimestampMissing KillmailTimestampClass = "missing"
+	KillmailTimestampInvalid KillmailTimestampClass = "invalid"
+)
+
 type Killmail struct {
 	KillID            int64
 	OccurredAt        time.Time
 	OccurredAtInvalid bool
 	OccurredAtIssue   KillmailTimeIssue
+	TimestampClass    KillmailTimestampClass
 	VictimID          int64
 	Attackers         int
 	ShipTypeID        int64

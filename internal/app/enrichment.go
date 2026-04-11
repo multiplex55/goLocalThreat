@@ -85,15 +85,28 @@ func deriveDetailThreatEvidence(characterID int64, kms []zkill.Killmail) detailT
 	soloKills := 0
 	totalAttackers := 0
 	for _, km := range kms {
-		if km.OccurredAtInvalid {
+		switch km.TimestampClass {
+		case zkill.KillmailTimestampValid:
+			out.ValidOccurredAt++
+		case zkill.KillmailTimestampMissing:
 			out.InvalidOccurredAt++
-			if km.OccurredAtIssue == zkill.KillmailTimeIssueMissing {
-				out.MissingOccurredAt++
+			out.MissingOccurredAt++
+		case zkill.KillmailTimestampInvalid:
+			out.InvalidOccurredAt++
+		default:
+			if km.OccurredAtInvalid {
+				out.InvalidOccurredAt++
+				if km.OccurredAtIssue == zkill.KillmailTimeIssueMissing {
+					out.MissingOccurredAt++
+				}
+			} else if !km.OccurredAt.IsZero() {
+				out.ValidOccurredAt++
 			}
 		}
+		hasValidTimestamp := km.TimestampClass == zkill.KillmailTimestampValid || (km.TimestampClass == "" && !km.OccurredAt.IsZero())
 		if km.VictimID == characterID {
 			out.Losses++
-			if !km.OccurredAt.IsZero() {
+			if hasValidTimestamp {
 				occurredAt := km.OccurredAt.UTC()
 				if out.LastLoss.IsZero() || occurredAt.After(out.LastLoss) {
 					out.LastLoss = occurredAt
@@ -101,7 +114,7 @@ func deriveDetailThreatEvidence(characterID int64, kms []zkill.Killmail) detailT
 			}
 		} else {
 			out.Kills++
-			if !km.OccurredAt.IsZero() {
+			if hasValidTimestamp {
 				occurredAt := km.OccurredAt.UTC()
 				if out.LastKill.IsZero() || occurredAt.After(out.LastKill) {
 					out.LastKill = occurredAt
@@ -112,8 +125,7 @@ func deriveDetailThreatEvidence(characterID int64, kms []zkill.Killmail) detailT
 			}
 			totalAttackers += max(1, km.Attackers)
 		}
-		if !km.OccurredAt.IsZero() {
-			out.ValidOccurredAt++
+		if hasValidTimestamp {
 			occurredAt := km.OccurredAt.UTC()
 			if out.LastActivity.IsZero() || occurredAt.After(out.LastActivity) {
 				out.LastActivity = occurredAt
@@ -216,6 +228,12 @@ func mergePilotThreat(summary zkill.SummaryRow, detail detailThreatEvidence, ref
 		DangerRatio:    scoring.OptionalFloat{Value: dangerPct / 100, Known: true},
 		LastActivityAt: scoring.OptionalTime{Value: lastActivity, Known: !lastActivity.IsZero()},
 	})
+	if detail.Killmails > 0 && detail.InvalidOccurredAt > 0 {
+		coverage := float64(detail.ValidOccurredAt) / float64(detail.Killmails)
+		confidencePenalty := 0.35 * (1 - coverage)
+		res.Confidence = maxFloat(0.2, res.Confidence-confidencePenalty)
+		res.DataCompleteness = maxFloat(0.0, res.DataCompleteness-(confidencePenalty*0.75))
+	}
 	breakdown := make([]domain.ThreatComponentBreakdown, 0, len(res.Breakdown))
 	for _, b := range res.Breakdown {
 		breakdown = append(breakdown, domain.ThreatComponentBreakdown{
@@ -258,4 +276,11 @@ func mergePilotThreat(summary zkill.SummaryRow, detail detailThreatEvidence, ref
 		DataAsOf: dataAsOf,
 		IsStale:  isStale(dataAsOf, refreshIntervalMin),
 	}, provenance
+}
+
+func maxFloat(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
 }
