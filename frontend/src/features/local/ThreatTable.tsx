@@ -286,6 +286,7 @@ export function VirtualThreatTable({
                 >
                   {visibleColumnDefs.map((column) => {
                     const cellValue = getCellText(row, column.key);
+                    const tagTitle = column.key === 'tags' ? rendered.tagCell.tooltip ?? undefined : undefined;
                     return (
                       <td
                         key={`${row.id}:${column.key}`}
@@ -294,10 +295,22 @@ export function VirtualThreatTable({
                         className={[
                           column.align === 'right' ? 'text-right' : 'text-left',
                           column.truncate ? 'threat-table-cell--truncate' : '',
+                          column.key === 'tags' ? 'threat-table-cell--tags' : '',
                         ].filter(Boolean).join(' ')}
-                        title={column.truncate ? cellValue : undefined}
+                        title={column.key === 'tags' ? tagTitle : (column.truncate ? cellValue : undefined)}
                       >
-                        {column.key === 'pilotName' ? (
+                        {column.key === 'tags' ? (
+                          <div className="threat-tag-cell-content" data-testid="threat-tag-cell-content">
+                            {rendered.tagCell.visible.map((tag) => (
+                              <span key={`${row.id}-${tag.label}`} className={`threat-tag-pill tone-${tag.tone}`}>
+                                {tag.label}
+                              </span>
+                            ))}
+                            {rendered.tagCell.overflowCount > 0 ? (
+                              <span className="threat-tag-overflow">+{rendered.tagCell.overflowCount}</span>
+                            ) : null}
+                          </div>
+                        ) : column.key === 'pilotName' ? (
                           <>
                             {isPinned(row.id) ? '📌 ' : ''}
                             {rendered.warningBadgeText ? (

@@ -125,9 +125,9 @@ describe('ThreatTable render model', () => {
     const first = table.rows[0]!.rendered;
 
     expect(first.score.badgeText).toBe('HIGH 81');
-    expect(first.tagCell.visible.map((tag) => tag.label)).toEqual(['FC', 'Cloaky', 'Hotdrop']);
+    expect(first.tagCell.visible.map((tag) => tag.label)).toEqual(['FC', 'Cloaky']);
     expect(first.tagCell.overflowCount).toBe(1);
-    expect(first.tagCell.overflowTooltip).toContain('Scout');
+    expect(first.tagCell.overflowTooltip).toContain('Active');
   });
 
   it('renders unknown metrics as em dash without synthetic zero values', () => {

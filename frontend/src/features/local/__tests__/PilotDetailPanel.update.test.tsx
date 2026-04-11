@@ -65,7 +65,7 @@ function buildState(): AnalyzeState {
           lastKill: null,
           lastLoss: null,
           freshness: { source: null, dataAsOf: null, isStale: null },
-          warnings: [{ code: 'W', message: 'Beta warning', severity: 'warn', provider: 'zkill', userVisible: true }],
+          warnings: [{ code: 'W', message: 'Beta warning', normalizedLabel: 'Beta warning', severity: 'warn', provider: 'zkill', userVisible: true, displayTier: 'detail_panel' }],
         },
       ],
     },
@@ -83,7 +83,9 @@ describe('PilotDetailPanel selection updates', () => {
     expect(screen.getByTestId('detail-title')).toHaveTextContent('Beta');
     expect(screen.getByTestId('detail-pane')).toHaveTextContent('Beta note');
     expect(screen.getByTestId('detail-pane')).toHaveTextContent('Beta warning');
-    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Threat score combines combat activity');
+    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Warnings and long-form explanation are intentionally moved here');
+    expect(screen.getByTestId('detail-tag-list')).toHaveTextContent('Stale Data');
+    expect(screen.getByTestId('detail-tag-rationale')).toHaveTextContent('Stale Data (+30)');
     expect(screen.getByTestId('detail-pane')).not.toHaveTextContent('Alpha note');
   });
 });
