@@ -32,16 +32,28 @@ const baseRow: ThreatRowView = {
 
 describe('ThreatTableRow warning badge', () => {
   it('shows active indicator for warn/error visible warnings', () => {
-    const row = buildThreatTableRow({ ...baseRow, warnings: [{ message: 'warn', severity: 'warn', userVisible: true }] }, false, false);
+    const row = buildThreatTableRow({ ...baseRow, warnings: [{ message: 'warn', severity: 'warn', userVisible: true, displayTier: 'row_hint' }] }, false, false);
     expect(row.warningIcon).toBe('⚠️');
     expect(row.warningIndicator).toBe('active');
     expect(row.warningBadgeText).toBe('⚠');
   });
 
   it('shows muted indicator for info/hidden warnings', () => {
-    const row = buildThreatTableRow({ ...baseRow, warnings: [{ message: 'info', severity: 'info', userVisible: false }] }, false, false);
+    const row = buildThreatTableRow({ ...baseRow, warnings: [{ message: 'info', severity: 'info', userVisible: false, displayTier: 'detail_panel' }] }, false, false);
     expect(row.warningIcon).toBeNull();
     expect(row.warningIndicator).toBe('muted');
     expect(row.warningBadgeText).toBe('•');
+  });
+
+  it('collapses repeated low-level detail warnings without a row glyph', () => {
+    const row = buildThreatTableRow({
+      ...baseRow,
+      warnings: [
+        { message: 'Partial timestamps', severity: 'warn', userVisible: true, displayTier: 'detail_panel' },
+        { message: 'Partial timestamps', severity: 'warn', userVisible: true, displayTier: 'detail_panel' },
+      ],
+    }, false, false);
+    expect(row.warningIcon).toBeNull();
+    expect(row.warningIndicator).toBe('muted');
   });
 });

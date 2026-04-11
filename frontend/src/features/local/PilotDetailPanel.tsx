@@ -9,16 +9,17 @@ function formatCorpAlliance(name: string, ticker?: string): string {
   return ticker ? `${name} [${ticker}]` : name;
 }
 
-function dedupeAndGroupDetailWarnings(warnings: NonNullable<ThreatRowView['warnings']>): Array<{ group: string; labels: string[] }> {
-  const grouped = new Map<string, Set<string>>();
-  warnings.filter((warning) => warning.displayTier === 'detail_panel').forEach((warning) => {
-    const group = `${warning.severity ?? 'info'}:${warning.category ?? 'provider'}`;
-    const label = warning.normalizedLabel ?? warning.message;
-    const bucket = grouped.get(group) ?? new Set<string>();
-    bucket.add(label);
-    grouped.set(group, bucket);
-  });
-  return Array.from(grouped.entries()).map(([group, labels]) => ({ group, labels: Array.from(labels) }));
+function dedupeAndGroupDetailWarnings(warnings: NonNullable<ThreatRowView['warnings']>): Array<{ label: string; count: number }> {
+  const grouped = new Map<string, number>();
+  warnings
+    .filter((warning) => warning.displayTier === 'detail_panel')
+    .forEach((warning) => {
+      const label = warning.normalizedLabel ?? warning.message;
+      grouped.set(label, (grouped.get(label) ?? 0) + 1);
+    });
+  return Array.from(grouped.entries())
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => (b.count - a.count) || a.label.localeCompare(b.label));
 }
 
 export function PilotDetailPanel({ row }: PilotDetailPanelProps) {
@@ -65,7 +66,9 @@ export function PilotDetailPanel({ row }: PilotDetailPanelProps) {
           <h4>Warnings & notes</h4>
           <p><strong>Notes:</strong> {row.notes || '—'}</p>
           <ul data-testid="detail-warnings">
-            {groupedWarnings.length ? groupedWarnings.map((group) => <li key={group.group}>{group.group} · {group.labels.join(', ')}</li>) : <li>None.</li>}
+            {groupedWarnings.length
+              ? groupedWarnings.map((group) => <li key={group.label}>{group.label}{group.count > 1 ? ` (${group.count})` : ''}</li>)
+              : <li>None.</li>}
           </ul>
         </section>
       </div>

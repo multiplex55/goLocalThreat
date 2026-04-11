@@ -45,11 +45,11 @@ export interface ThreatTableRowView {
 }
 
 function hasWarnings(row: ThreatRowView): boolean {
-  return (row.warnings ?? []).some((warning) => warning.userVisible !== false && warning.severity !== 'info');
+  return (row.warnings ?? []).some((warning) => warning.displayTier === 'row_hint');
 }
 
 function hasMutedWarnings(row: ThreatRowView): boolean {
-  return (row.warnings ?? []).some((warning) => warning.userVisible === false || warning.severity === 'info');
+  return (row.warnings ?? []).some((warning) => warning.displayTier !== 'row_hint');
 }
 
 function formatPlainNumber(value: number | null): string {

@@ -8,6 +8,11 @@ export interface WarningPresentation {
 const WARNING_PRESENTATION_BY_CODE: Record<string, WarningPresentation> = {
   DETAIL_TIME_INVALID: { normalizedLabel: 'Partial timestamps', displayTier: 'detail_panel' },
   DETAIL_TIME_MISSING: { normalizedLabel: 'Recent activity incomplete', displayTier: 'detail_panel' },
+  SUMMARY_FAILED: { normalizedLabel: 'Summary unavailable', displayTier: 'status_strip' },
+  DETAIL_FAILED: { normalizedLabel: 'Recent activity incomplete', displayTier: 'status_strip' },
+  RESOLVE_FAILED: { normalizedLabel: 'Pilot lookup incomplete', displayTier: 'status_strip' },
+  IDENTITY_PARTIAL: { normalizedLabel: 'Pilot profile partial', displayTier: 'status_strip' },
+  UNRESOLVED_NAME: { normalizedLabel: 'Pilot lookup incomplete', displayTier: 'status_strip' },
   SUMMARY_ONLY: { normalizedLabel: 'Derived from summary only', displayTier: 'detail_panel' },
   TRANSPORT_TIMEOUT: { normalizedLabel: 'Recent activity incomplete', displayTier: 'status_strip' },
   TRANSPORT_RATE_LIMIT: { normalizedLabel: 'Recent activity incomplete', displayTier: 'status_strip' },
