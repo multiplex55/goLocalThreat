@@ -274,6 +274,23 @@ func TestParseKillmailsInvalidTimeKeepsNonTimeFields(t *testing.T) {
 	}
 }
 
+func TestParseKillmailOccurredAtClassifiesValidMissingInvalid(t *testing.T) {
+	ts, issue, class := parseKillmailOccurredAt("2026-04-10T12:34:56Z", "", "")
+	if ts.IsZero() || issue != KillmailTimeIssueNone || class != KillmailTimestampValid {
+		t.Fatalf("expected valid classification, got ts=%v issue=%q class=%q", ts, issue, class)
+	}
+
+	ts, issue, class = parseKillmailOccurredAt("", "", "")
+	if !ts.IsZero() || issue != KillmailTimeIssueMissing || class != KillmailTimestampMissing {
+		t.Fatalf("expected missing classification, got ts=%v issue=%q class=%q", ts, issue, class)
+	}
+
+	ts, issue, class = parseKillmailOccurredAt("not-a-time", "", "")
+	if !ts.IsZero() || issue != KillmailTimeIssueInvalid || class != KillmailTimestampInvalid {
+		t.Fatalf("expected invalid classification, got ts=%v issue=%q class=%q", ts, issue, class)
+	}
+}
+
 func TestParseZKillTimeParsesRFC3339First(t *testing.T) {
 	got, ok := parseZKillTime("2026-04-10T12:34:56Z")
 	if !ok {

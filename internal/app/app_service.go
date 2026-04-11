@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -642,37 +643,93 @@ func aggregateTimestampWarnings(warnings []domain.ProviderWarning) []domain.Prov
 	if len(warnings) == 0 {
 		return warnings
 	}
-	perPilotCounts := map[int64]int{}
+	type key struct {
+		charID   int64
+		hasPilot bool
+	}
+	type state struct {
+		base             domain.ProviderWarning
+		rawCount         int
+		failures         int
+		missing          int
+		unparseable      int
+		hasMissingSignal bool
+	}
+	timestamp := map[key]*state{}
+	nonTimestamp := make([]domain.ProviderWarning, 0, len(warnings))
 	globalCount := 0
 	for _, warning := range warnings {
 		if warning.Code != "DETAIL_TIME_INVALID" && warning.Code != "DETAIL_TIME_MISSING" {
+			nonTimestamp = append(nonTimestamp, warning)
 			continue
 		}
 		globalCount++
+		k := key{}
 		if warning.CharacterID != nil {
-			perPilotCounts[*warning.CharacterID]++
+			k.charID = *warning.CharacterID
+			k.hasPilot = true
+		}
+		s := timestamp[k]
+		if s == nil {
+			base := warning
+			if base.Metadata == nil {
+				base.Metadata = map[string]string{}
+			}
+			s = &state{base: base}
+			timestamp[k] = s
+		}
+		s.rawCount++
+		s.failures += parseWarningInt(warning.Metadata, "timestampFailures")
+		s.missing += parseWarningInt(warning.Metadata, "timestampMissing")
+		s.unparseable += parseWarningInt(warning.Metadata, "timestampUnparseable")
+		if warning.Code == "DETAIL_TIME_MISSING" {
+			s.hasMissingSignal = true
 		}
 	}
 	if globalCount == 0 {
 		return warnings
 	}
-	out := make([]domain.ProviderWarning, len(warnings))
-	for i, warning := range warnings {
-		clone := warning
+	out := append([]domain.ProviderWarning(nil), nonTimestamp...)
+	for k, s := range timestamp {
+		clone := s.base
 		if clone.Metadata == nil {
 			clone.Metadata = map[string]string{}
 		}
-		if clone.Code == "DETAIL_TIME_INVALID" || clone.Code == "DETAIL_TIME_MISSING" {
-			clone.Metadata["aggregateGlobalCount"] = fmt.Sprintf("%d", globalCount)
-			clone.Metadata["impact.timestamps"] = "true"
-			clone.Metadata["impact.recency"] = fmt.Sprintf("%t", clone.Code == "DETAIL_TIME_MISSING")
-			if clone.CharacterID != nil {
-				clone.Metadata["aggregatePilotCount"] = fmt.Sprintf("%d", perPilotCounts[*clone.CharacterID])
-			}
+		if s.hasMissingSignal {
+			clone.Code = "DETAIL_TIME_MISSING"
+			clone.Message = warningMessageForCode("DETAIL_TIME_MISSING", clone.Message)
+			clone.Severity = "warn"
+		} else {
+			clone.Code = "DETAIL_TIME_INVALID"
+			clone.Message = warningMessageForCode("DETAIL_TIME_INVALID", clone.Message)
 		}
-		out[i] = clone
+		if s.failures == 0 {
+			s.failures = s.rawCount
+		}
+		clone.Metadata["aggregateGlobalCount"] = fmt.Sprintf("%d", globalCount)
+		clone.Metadata["aggregatePilotCount"] = fmt.Sprintf("%d", s.rawCount)
+		clone.Metadata["impact.timestamps"] = "true"
+		clone.Metadata["impact.recency"] = fmt.Sprintf("%t", s.hasMissingSignal)
+		clone.Metadata["timestampFailures"] = fmt.Sprintf("%d", s.failures)
+		clone.Metadata["timestampMissing"] = fmt.Sprintf("%d", s.missing)
+		clone.Metadata["timestampUnparseable"] = fmt.Sprintf("%d", s.unparseable)
+		if k.hasPilot {
+			clone.CharacterID = int64Ptr(k.charID)
+		}
+		out = append(out, clone)
 	}
 	return out
+}
+
+func parseWarningInt(metadata map[string]string, field string) int {
+	if metadata == nil {
+		return 0
+	}
+	n, err := strconv.Atoi(metadata[field])
+	if err != nil {
+		return 0
+	}
+	return n
 }
 func (a *AppService) RefreshSession(sessionID string) (AnalysisSessionDTO, error) {
 	a.mu.Lock()

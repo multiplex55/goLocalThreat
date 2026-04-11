@@ -141,3 +141,43 @@ func TestFetchDetailsNoValidTimesWarnsButKeepsNonTimeEnrichment(t *testing.T) {
 		t.Fatalf("expected pilot-scoped DETAIL_TIME_INVALID and DETAIL_TIME_MISSING warnings, got %#v", warnings)
 	}
 }
+
+func TestMergePilotThreatRetainsNonTimeSignalsWhenTimestampClassInvalid(t *testing.T) {
+	summary := zkill.SummaryRow{RecentKills: 9, RecentLosses: 4, DangerRatio: 0.65, LastActivity: time.Now().UTC().Add(-3 * time.Hour)}
+	detail := deriveDetailThreatEvidence(700, []zkill.Killmail{
+		{KillID: 1, VictimID: 800, Attackers: 1, ShipTypeID: 177, TimestampClass: zkill.KillmailTimestampInvalid},
+		{KillID: 2, VictimID: 800, Attackers: 4, ShipTypeID: 177, TimestampClass: zkill.KillmailTimestampMissing},
+		{KillID: 3, VictimID: 700, Attackers: 3, ShipTypeID: 177, TimestampClass: zkill.KillmailTimestampInvalid},
+	})
+
+	merged, _, _ := mergePilotThreat(summary, detail, 10, time.Now().UTC())
+	if merged.RecentKills != 2 || merged.RecentLosses != 1 {
+		t.Fatalf("expected detail combat volume to survive timestamp issues, got %#v", merged)
+	}
+	if merged.MainShip != "ShipType #177" || merged.SoloPercent != 50 || merged.AvgGangSize <= 0 {
+		t.Fatalf("expected non-time signals to be retained, got %#v", merged)
+	}
+}
+
+func TestMergePilotThreatTimestampFailuresReduceConfidenceNotActivityMetrics(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	summary := zkill.SummaryRow{RecentKills: 1, RecentLosses: 1, DangerRatio: 0.5, LastActivity: now.Add(-2 * time.Hour)}
+	withGoodTimes := deriveDetailThreatEvidence(11, []zkill.Killmail{
+		{KillID: 1, VictimID: 22, Attackers: 2, ShipTypeID: 500, TimestampClass: zkill.KillmailTimestampValid, OccurredAt: now.Add(-20 * time.Minute)},
+		{KillID: 2, VictimID: 22, Attackers: 1, ShipTypeID: 500, TimestampClass: zkill.KillmailTimestampValid, OccurredAt: now.Add(-40 * time.Minute)},
+	})
+	withBadTimes := deriveDetailThreatEvidence(11, []zkill.Killmail{
+		{KillID: 1, VictimID: 22, Attackers: 2, ShipTypeID: 500, TimestampClass: zkill.KillmailTimestampInvalid},
+		{KillID: 2, VictimID: 22, Attackers: 1, ShipTypeID: 500, TimestampClass: zkill.KillmailTimestampMissing},
+	})
+
+	good, _, _ := mergePilotThreat(summary, withGoodTimes, 10, now)
+	bad, _, _ := mergePilotThreat(summary, withBadTimes, 10, now)
+
+	if bad.RecentKills != good.RecentKills || bad.RecentLosses != good.RecentLosses || bad.SoloPercent != good.SoloPercent {
+		t.Fatalf("expected activity-derived metrics preserved despite timestamp failures\ngood=%#v\nbad=%#v", good, bad)
+	}
+	if !(bad.Confidence < good.Confidence) {
+		t.Fatalf("expected confidence degradation from timestamp failures: good=%.2f bad=%.2f", good.Confidence, bad.Confidence)
+	}
+}
