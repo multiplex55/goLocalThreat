@@ -12,6 +12,35 @@ function nullableText(value: string | undefined): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
 }
 
+function normalizeTimestampOrNull(value: string | undefined): string | null {
+  const normalized = nullableText(value);
+  if (!normalized) return null;
+  if (normalized === '0001-01-01T00:00:00Z') return null;
+  if (normalized.startsWith('0001-01-01')) return null;
+  return normalized;
+}
+
+function pickPreferredNonZeroNumber(primary: number | null | undefined, secondary: number | null | undefined): number | null {
+  const hasPrimary = typeof primary === 'number';
+  const hasSecondary = typeof secondary === 'number';
+  if (hasPrimary && primary !== 0) return primary;
+  if (hasSecondary && secondary !== 0) return secondary;
+  if (hasPrimary) return primary;
+  if (hasSecondary) return secondary;
+  return null;
+}
+
+function pickPreferredNonEmptyText(primary: string | undefined, secondary: string | undefined): string | null {
+  return nullableText(primary) ?? nullableText(secondary);
+}
+
+function pickPreferredThreatBand(primary: string | undefined, secondary: string | undefined): ThreatBand {
+  const preferred = primary && primary !== 'unknown'
+    ? primary
+    : secondary;
+  return toThreatBand(preferred);
+}
+
 function toWarningView(warning: AppService.ParseWarningDTO): ParseWarningView {
   return {
     provider: warning.provider,
@@ -27,6 +56,27 @@ function toWarningView(warning: AppService.ParseWarningDTO): ParseWarningView {
 
 function toPilotView(pilot: AppService.PilotThreatDTO, warnings: ParseWarningView[]): PilotThreatView {
   const identity = pilot.identity;
+  const threatScore = pickPreferredNonZeroNumber(pilot.threat?.threatScore, pilot.threatScore);
+  const resolvedThreatBand = pickPreferredThreatBand(pilot.threat?.threatBand, pilot.threatBand);
+
+  if (import.meta.env.DEV && typeof window !== 'undefined') {
+    const debugPilotId = (window as Window & { __LOCAL_THREAT_DEBUG_PILOT_ID__?: string }).__LOCAL_THREAT_DEBUG_PILOT_ID__;
+    if (debugPilotId && debugPilotId === String(identity.characterId)) {
+      console.debug('[adapter:pilot-boundary]', {
+        pilotId: String(identity.characterId),
+        kills: pickPreferredNonZeroNumber(pilot.threat?.recentKills, pilot.kills),
+        losses: pickPreferredNonZeroNumber(pilot.threat?.recentLosses, pilot.losses),
+        dangerPercent: pickPreferredNonZeroNumber(pilot.threat?.dangerPercent, pilot.dangerPercent),
+        soloPercent: pickPreferredNonZeroNumber(pilot.threat?.soloPercent, pilot.soloPercent),
+        avgGangSize: pickPreferredNonZeroNumber(pilot.threat?.avgGangSize, pilot.avgGangSize),
+        mainShip: pickPreferredNonEmptyText(pilot.threat?.mainShip, pilot.mainShip),
+        lastKill: normalizeTimestampOrNull(pilot.threat?.lastKill) ?? normalizeTimestampOrNull(pilot.lastKill),
+        lastLoss: normalizeTimestampOrNull(pilot.threat?.lastLoss) ?? normalizeTimestampOrNull(pilot.lastLoss),
+        threatScore,
+        threatBand: resolvedThreatBand,
+      });
+    }
+  }
 
   return {
     id: String(identity.characterId),
@@ -43,23 +93,23 @@ function toPilotView(pilot: AppService.PilotThreatDTO, warnings: ParseWarningVie
         allianceId: identity.allianceId ?? null,
       },
     },
-    score: Math.round(pilot.threat?.threatScore ?? pilot.threatScore ?? 0),
-    band: toThreatBand(pilot.threat?.threatBand ?? pilot.threatBand),
+    score: Math.round(threatScore ?? 0),
+    band: resolvedThreatBand,
     confidence: pilot.threat?.confidence ?? 0,
     reasons: pilot.threat?.threatReasons ?? [],
     tags: pilot.tags ?? [],
     notes: nullableText(pilot.threat?.notes ?? pilot.notes),
-    kills: pilot.threat?.recentKills ?? pilot.kills ?? null,
-    losses: pilot.threat?.recentLosses ?? pilot.losses ?? null,
-    dangerPercent: pilot.threat?.dangerPercent ?? pilot.dangerPercent ?? null,
-    soloPercent: pilot.threat?.soloPercent ?? pilot.soloPercent ?? null,
-    avgGangSize: pilot.threat?.avgGangSize ?? pilot.avgGangSize ?? null,
-    mainShip: nullableText(pilot.threat?.mainShip ?? pilot.mainShip),
-    lastKill: nullableText(pilot.threat?.lastKill ?? pilot.lastKill),
-    lastLoss: nullableText(pilot.threat?.lastLoss ?? pilot.lastLoss),
+    kills: pickPreferredNonZeroNumber(pilot.threat?.recentKills, pilot.kills),
+    losses: pickPreferredNonZeroNumber(pilot.threat?.recentLosses, pilot.losses),
+    dangerPercent: pickPreferredNonZeroNumber(pilot.threat?.dangerPercent, pilot.dangerPercent),
+    soloPercent: pickPreferredNonZeroNumber(pilot.threat?.soloPercent, pilot.soloPercent),
+    avgGangSize: pickPreferredNonZeroNumber(pilot.threat?.avgGangSize, pilot.avgGangSize),
+    mainShip: pickPreferredNonEmptyText(pilot.threat?.mainShip, pilot.mainShip),
+    lastKill: normalizeTimestampOrNull(pilot.threat?.lastKill) ?? normalizeTimestampOrNull(pilot.lastKill),
+    lastLoss: normalizeTimestampOrNull(pilot.threat?.lastLoss) ?? normalizeTimestampOrNull(pilot.lastLoss),
     freshness: {
       source: nullableText(pilot.freshness?.source),
-      dataAsOf: nullableText(pilot.freshness?.dataAsOf),
+      dataAsOf: normalizeTimestampOrNull(pilot.freshness?.dataAsOf),
       isStale: pilot.freshness?.isStale ?? null,
     },
     warnings,

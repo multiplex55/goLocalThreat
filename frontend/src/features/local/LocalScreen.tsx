@@ -38,6 +38,25 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return tagName === 'textarea' || tagName === 'input' || target.isContentEditable;
 }
 
+function isZeroTimestamp(value: string): boolean {
+  return value === '0001-01-01T00:00:00Z' || value.startsWith('0001-01-01');
+}
+
+function renderTableCellValue(value: unknown, column: ThreatTableColumn): string {
+  if (Array.isArray(value)) {
+    const joined = value.join(', ').trim();
+    return joined || '—';
+  }
+  if (value == null) return '—';
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return '—';
+    if ((column === 'lastKill' || column === 'lastLoss') && isZeroTimestamp(trimmed)) return '—';
+    return trimmed;
+  }
+  return String(value);
+}
+
 function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(query).matches);
 
@@ -336,8 +355,7 @@ export function LocalScreen({
                       }
 
                       const value = tableRow.row[h.column];
-                      const rendered = Array.isArray(value) ? value.join(', ') : (value ?? '—');
-                      return <td key={h.column}>{String(rendered) || '—'}</td>;
+                      return <td key={h.column}>{renderTableCellValue(value, h.column)}</td>;
                     })}
                   </tr>
                 ))}
