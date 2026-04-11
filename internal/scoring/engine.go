@@ -61,11 +61,14 @@ type Breakdown struct {
 }
 
 type Result struct {
-	ThreatScore   float64     `json:"threatScore"`
-	ThreatBand    string      `json:"threatBand"`
-	ThreatReasons []string    `json:"threatReasons"`
-	Breakdown     []Breakdown `json:"threatBreakdown"`
-	Confidence    float64     `json:"confidence"`
+	ThreatScore      float64     `json:"threatScore"`
+	RawThreatScore   float64     `json:"rawThreatScore"`
+	ThreatBand       string      `json:"threatBand"`
+	AssessmentState  string      `json:"assessmentState"`
+	ThreatReasons    []string    `json:"threatReasons"`
+	Breakdown        []Breakdown `json:"threatBreakdown"`
+	Confidence       float64     `json:"confidence"`
+	DataCompleteness float64     `json:"dataCompleteness"`
 }
 
 type Engine struct {
@@ -94,13 +97,16 @@ func (e Engine) Score(input EnrichedPilotInput) Result {
 		}
 		knownWeight += p.Weight
 	}
-	confidence := clamp(1.0-0.6*(float64(unknown)/float64(len(parts))), 0.4, 1.0)
+	totalWeight := e.settings.Weights.Activity + e.settings.Weights.Lethality + e.settings.Weights.SoloRisk + e.settings.Weights.Recentness + e.settings.Weights.Context
+	dataCompleteness := 0.0
+	if totalWeight > 0 {
+		dataCompleteness = clamp(knownWeight/totalWeight, 0, 1)
+	}
+	confidence := clamp(0.3+(0.7*dataCompleteness), 0.2, 1.0)
 
-	base := 0.0
 	knownContribution := 0.0
 	for i := range parts {
 		parts[i].Contribution = round2(parts[i].Raw * parts[i].Weight)
-		base += parts[i].Contribution
 		if !parts[i].Unknown {
 			knownContribution += parts[i].Contribution
 		}
@@ -111,22 +117,23 @@ func (e Engine) Score(input EnrichedPilotInput) Result {
 		Component:    "uncertainty",
 		Raw:          uncertaintyRaw,
 		Weight:       e.settings.Weights.Uncertainty,
-		Contribution: round2(uncertaintyRaw * e.settings.Weights.Uncertainty),
+		Contribution: 0,
 		Unknown:      false,
 		Explanation:  fmt.Sprintf("Known components %d/%d; confidence %.2f", len(parts)-unknown, len(parts), confidence),
 	}
 	parts = append(parts, uncertainty)
 
-	total := base
+	rawThreat := 0.0
 	if knownWeight > 0 {
-		totalWeight := e.settings.Weights.Activity + e.settings.Weights.Lethality + e.settings.Weights.SoloRisk + e.settings.Weights.Recentness + e.settings.Weights.Context
-		coverage := knownWeight / totalWeight
-		normalizedKnown := knownContribution / knownWeight
-		total = round2((normalizedKnown * coverage) + uncertainty.Contribution)
-	} else {
-		total = round2(base*confidence + uncertainty.Contribution)
+		rawThreat = round2(knownContribution / knownWeight)
 	}
-	band := BandForScore(total, e.settings.Thresholds)
+	band := BandForScore(rawThreat, e.settings.Thresholds)
+	state := "complete-data"
+	if dataCompleteness < 0.35 {
+		state = "insufficient-data"
+	} else if dataCompleteness < 0.999 {
+		state = "partial-data"
+	}
 	reasons := topReasons(parts)
 	sort.Slice(parts, func(i, j int) bool {
 		if parts[i].Contribution == parts[j].Contribution {
@@ -134,7 +141,16 @@ func (e Engine) Score(input EnrichedPilotInput) Result {
 		}
 		return parts[i].Contribution > parts[j].Contribution
 	})
-	return Result{ThreatScore: total, ThreatBand: band, ThreatReasons: reasons, Breakdown: parts, Confidence: confidence}
+	return Result{
+		ThreatScore:      rawThreat,
+		RawThreatScore:   rawThreat,
+		ThreatBand:       band,
+		AssessmentState:  state,
+		ThreatReasons:    reasons,
+		Breakdown:        parts,
+		Confidence:       confidence,
+		DataCompleteness: dataCompleteness,
+	}
 }
 
 func (e Engine) activity(input EnrichedPilotInput) Breakdown {

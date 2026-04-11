@@ -1,7 +1,7 @@
 package scoring
 
 import (
-	"strings"
+	"math"
 	"testing"
 	"time"
 )
@@ -14,42 +14,87 @@ func TestUnknownStateAndUncertaintyPenalty(t *testing.T) {
 	if result.Confidence >= 1.0 {
 		t.Fatalf("expected reduced confidence for unknown inputs, got %.2f", result.Confidence)
 	}
+	if result.DataCompleteness >= 1.0 {
+		t.Fatalf("expected reduced completeness for unknown inputs, got %.2f", result.DataCompleteness)
+	}
+	if result.AssessmentState != "insufficient-data" {
+		t.Fatalf("expected insufficient-data state, got %q", result.AssessmentState)
+	}
 	var foundUnknown bool
 	for _, b := range result.Breakdown {
 		if b.Component == "activity" && b.Unknown {
 			foundUnknown = true
 		}
-		if b.Component == "uncertainty" && b.Contribution <= 0 {
-			t.Fatalf("expected uncertainty contribution to be positive")
-		}
 	}
 	if !foundUnknown {
 		t.Fatalf("expected unknown activity component")
 	}
-	if len(result.ThreatReasons) == 0 || !strings.Contains(strings.ToLower(result.ThreatReasons[0]), "uncertainty") {
-		t.Fatalf("expected uncertainty to appear in reasons: %#v", result.ThreatReasons)
+}
+
+func TestPartialDataHighVolumeDoesNotCollapseToLowBaseline(t *testing.T) {
+	engine := NewEngine(DefaultSettings)
+	highVolumePartial := EnrichedPilotInput{
+		SnapshotAt:   time.Date(2026, 4, 10, 0, 0, 0, 0, time.UTC),
+		RecentKills:  OptionalFloat{Value: 24, Known: true},
+		RecentLosses: OptionalFloat{Value: 8, Known: true},
+		DangerRatio:  OptionalFloat{Value: 1.8, Known: true},
+	}
+	result := engine.Score(highVolumePartial)
+	if result.ThreatBand == "low" || result.ThreatBand == "minimal" {
+		t.Fatalf("expected high-volume partial profile to avoid low baseline band, got %q (score %.2f)", result.ThreatBand, result.ThreatScore)
+	}
+	if result.AssessmentState != "partial-data" {
+		t.Fatalf("expected partial-data state, got %q", result.AssessmentState)
 	}
 }
 
-func TestPartialInputsKeepDifferentiatedScoresWithLowerConfidence(t *testing.T) {
+func TestSameRawScoreDifferentDataQualityChangesConfidence(t *testing.T) {
 	engine := NewEngine(DefaultSettings)
-	base := EnrichedPilotInput{
+	hostile := true
+	full := EnrichedPilotInput{
+		SnapshotAt:     time.Date(2026, 4, 10, 0, 0, 0, 0, time.UTC),
+		RecentKills:    OptionalFloat{Value: 12, Known: true},
+		RecentLosses:   OptionalFloat{Value: 3, Known: true},
+		DangerRatio:    OptionalFloat{Value: 1.5, Known: true},
+		AvgAttackers:   OptionalFloat{Value: 2, Known: true},
+		SoloKillRatio:  OptionalFloat{Value: 0.9441667, Known: true},
+		LastActivityAt: OptionalTime{Value: time.Date(2026, 4, 5, 7, 58, 48, 0, time.UTC), Known: true},
+		SecurityStatus: OptionalFloat{Value: -1.1083333, Known: true},
+		InHostileSpace: &hostile,
+	}
+	partial := EnrichedPilotInput{
+		SnapshotAt:   full.SnapshotAt,
+		RecentKills:  full.RecentKills,
+		RecentLosses: full.RecentLosses,
+		DangerRatio:  full.DangerRatio,
+	}
+	fullRes := engine.Score(full)
+	partialRes := engine.Score(partial)
+	if math.Abs(fullRes.RawThreatScore-partialRes.RawThreatScore) > 0.01 {
+		t.Fatalf("expected equal raw score, full=%.2f partial=%.2f", fullRes.RawThreatScore, partialRes.RawThreatScore)
+	}
+	if fullRes.Confidence <= partialRes.Confidence {
+		t.Fatalf("expected lower confidence with weaker data quality, full=%.2f partial=%.2f", fullRes.Confidence, partialRes.Confidence)
+	}
+}
+
+func TestUnknownFieldsDoNotForceIdenticalBandsAcrossProfiles(t *testing.T) {
+	engine := NewEngine(DefaultSettings)
+	highActivity := EnrichedPilotInput{
 		SnapshotAt:   time.Date(2026, 4, 10, 0, 0, 0, 0, time.UTC),
-		RecentKills:  OptionalFloat{Value: 9, Known: true},
-		RecentLosses: OptionalFloat{Value: 1, Known: true},
-		DangerRatio:  OptionalFloat{Value: 1.4, Known: true},
+		RecentKills:  OptionalFloat{Value: 18, Known: true},
+		RecentLosses: OptionalFloat{Value: 6, Known: true},
+		DangerRatio:  OptionalFloat{Value: 1.7, Known: true},
 	}
-	lower := base
-	lower.RecentKills = OptionalFloat{Value: 2, Known: true}
-	lower.RecentLosses = OptionalFloat{Value: 4, Known: true}
-
-	highRes := engine.Score(base)
-	lowRes := engine.Score(lower)
-
-	if highRes.ThreatScore <= lowRes.ThreatScore {
-		t.Fatalf("expected differentiated scores with partial inputs, high=%.2f low=%.2f", highRes.ThreatScore, lowRes.ThreatScore)
+	lowActivity := EnrichedPilotInput{
+		SnapshotAt:   highActivity.SnapshotAt,
+		RecentKills:  OptionalFloat{Value: 1, Known: true},
+		RecentLosses: OptionalFloat{Value: 3, Known: true},
+		DangerRatio:  OptionalFloat{Value: 0.4, Known: true},
 	}
-	if highRes.Confidence >= 1.0 || lowRes.Confidence >= 1.0 {
-		t.Fatalf("expected confidence degradation for partial inputs, got high=%.2f low=%.2f", highRes.Confidence, lowRes.Confidence)
+	highRes := engine.Score(highActivity)
+	lowRes := engine.Score(lowActivity)
+	if highRes.ThreatBand == lowRes.ThreatBand {
+		t.Fatalf("expected distinct bands despite shared unknown fields, high=%q low=%q", highRes.ThreatBand, lowRes.ThreatBand)
 	}
 }

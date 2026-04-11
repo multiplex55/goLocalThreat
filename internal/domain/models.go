@@ -88,22 +88,25 @@ type ThreatComponentBreakdown struct {
 }
 
 type ThreatBreakdown struct {
-	Total          float64                    `json:"total"`
-	ThreatScore    float64                    `json:"threatScore"`
-	ThreatBand     string                     `json:"threatBand"`
-	ThreatReasons  []string                   `json:"threatReasons"`
-	Breakdown      []ThreatComponentBreakdown `json:"threatBreakdown"`
-	Confidence     float64                    `json:"confidence"`
-	RecentKills    int                        `json:"recentKills"`
-	RecentLosses   int                        `json:"recentLosses"`
-	DangerPercent  float64                    `json:"dangerPercent"`
-	SoloPercent    float64                    `json:"soloPercent"`
-	AvgGangSize    float64                    `json:"avgGangSize"`
-	LastKill       time.Time                  `json:"lastKill,omitempty"`
-	LastLoss       time.Time                  `json:"lastLoss,omitempty"`
-	MainShip       string                     `json:"mainShip,omitempty"`
-	Notes          string                     `json:"notes,omitempty"`
-	SecurityStatus float64                    `json:"securityStatus"`
+	Total            float64                    `json:"total"`
+	ThreatScore      float64                    `json:"threatScore"`
+	RawThreatScore   float64                    `json:"rawThreatScore"`
+	ThreatBand       string                     `json:"threatBand"`
+	AssessmentState  string                     `json:"assessmentState,omitempty"`
+	ThreatReasons    []string                   `json:"threatReasons"`
+	Breakdown        []ThreatComponentBreakdown `json:"threatBreakdown"`
+	Confidence       float64                    `json:"confidence"`
+	DataCompleteness float64                    `json:"dataCompleteness"`
+	RecentKills      int                        `json:"recentKills"`
+	RecentLosses     int                        `json:"recentLosses"`
+	DangerPercent    float64                    `json:"dangerPercent"`
+	SoloPercent      float64                    `json:"soloPercent"`
+	AvgGangSize      float64                    `json:"avgGangSize"`
+	LastKill         time.Time                  `json:"lastKill,omitempty"`
+	LastLoss         time.Time                  `json:"lastLoss,omitempty"`
+	MainShip         string                     `json:"mainShip,omitempty"`
+	Notes            string                     `json:"notes,omitempty"`
+	SecurityStatus   float64                    `json:"securityStatus"`
 }
 
 func (t ThreatBreakdown) Validate() error {

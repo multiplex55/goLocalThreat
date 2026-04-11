@@ -111,12 +111,12 @@ func parseSummaryRow(body []byte) (SummaryRow, *SummaryParseWarning, error) {
 		}
 	}
 
-	row.RecentKills = firstInt(payload,
+	row.RecentKills, row.RecentKillsKnown = firstInt(payload,
 		"kills",
 		"shipsDestroyed",
 		"ships_destroyed",
 	)
-	row.RecentLosses = firstInt(payload,
+	row.RecentLosses, row.RecentLossesKnown = firstInt(payload,
 		"losses",
 		"shipsLost",
 		"ships_lost",
@@ -124,8 +124,10 @@ func parseSummaryRow(body []byte) (SummaryRow, *SummaryParseWarning, error) {
 
 	if danger, ok := firstFloat(payload, "danger"); ok {
 		row.DangerRatio = danger
+		row.DangerRatioKnown = true
 	} else if dangerPct, ok := firstFloat(payload, "dangerRatio", "danger_ratio"); ok {
 		row.DangerRatio = dangerPct / 100
+		row.DangerRatioKnown = true
 	}
 
 	if ts := parseActivityTimestamp(payload); !ts.IsZero() {
@@ -139,7 +141,7 @@ func parseSummaryRow(body []byte) (SummaryRow, *SummaryParseWarning, error) {
 }
 
 func detectParseDriftWarning(payload map[string]any, row SummaryRow) *SummaryParseWarning {
-	if row.RecentKills != 0 || row.RecentLosses != 0 || row.DangerRatio != 0 {
+	if (row.RecentKillsKnown && row.RecentKills != 0) || (row.RecentLossesKnown && row.RecentLosses != 0) || (row.DangerRatioKnown && row.DangerRatio != 0) {
 		return nil
 	}
 	if v, ok := firstFloat(payload, "shipsDestroyed", "kills", "ships_destroyed"); ok && v > 0 {
@@ -205,15 +207,13 @@ func parseTimestamp(raw string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-func firstInt(payload map[string]any, keys ...string) int {
+func firstInt(payload map[string]any, keys ...string) (int, bool) {
 	for _, k := range keys {
 		if n, ok := payload[k]; ok {
-			if v := int(int64FromAny(n)); v != 0 {
-				return v
-			}
+			return int(int64FromAny(n)), true
 		}
 	}
-	return 0
+	return 0, false
 }
 
 func firstFloat(payload map[string]any, keys ...string) (float64, bool) {
