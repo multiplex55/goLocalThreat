@@ -1,0 +1,15 @@
+[
+  {
+    "killmail_id": 801,
+    "zkb_time": "not-a-time",
+    "solar_system_id": 30002001,
+    "attackers": [{"character_id": 1}],
+    "victim": {"character_id": 4001, "ship_type_id": 33818, "damage_taken": 6000}
+  },
+  {
+    "killmail_id": 802,
+    "solar_system_id": 30002001,
+    "attackers": [{"character_id": 1},{"character_id": 2},{"character_id": 3}],
+    "victim": {"character_id": 900005, "ship_type_id": 33818, "damage_taken": 6100}
+  }
+]

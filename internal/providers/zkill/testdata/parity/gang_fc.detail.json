@@ -1,0 +1,16 @@
+[
+  {
+    "killmail_id": 601,
+    "zkb_time": "2026-03-01T08:00:00",
+    "solar_system_id": 30002187,
+    "attackers": [{"character_id": 1},{"character_id": 2},{"character_id": 3},{"character_id": 4},{"character_id": 5},{"character_id": 6},{"character_id": 7}],
+    "victim": {"character_id": 2001, "ship_type_id": 22456, "damage_taken": 9000}
+  },
+  {
+    "killmail_id": 602,
+    "zkb_time": "2026-03-01T07:50:00",
+    "solar_system_id": 30002187,
+    "attackers": [{"character_id": 1},{"character_id": 2},{"character_id": 3},{"character_id": 4},{"character_id": 5}],
+    "victim": {"character_id": 900002, "ship_type_id": 22456, "damage_taken": 8500}
+  }
+]
