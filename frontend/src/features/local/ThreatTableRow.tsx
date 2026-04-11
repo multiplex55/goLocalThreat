@@ -95,6 +95,20 @@ function dimmedTimestamp(value: string | null | undefined): string {
   return dimmedText(value);
 }
 
+export function formatKillLossCompact(kills: number | null, losses: number | null): string {
+  if (kills == null && losses == null) return PLACEHOLDER;
+  return `${formatPlainNumber(kills)}/${formatPlainNumber(losses)}`;
+}
+
+export function formatLastActivity(lastKill: string | null, lastLoss: string | null): string {
+  const normalizedKill = dimmedTimestamp(lastKill);
+  const normalizedLoss = dimmedTimestamp(lastLoss);
+  if (normalizedKill === PLACEHOLDER && normalizedLoss === PLACEHOLDER) return PLACEHOLDER;
+  if (normalizedKill === PLACEHOLDER) return normalizedLoss;
+  if (normalizedLoss === PLACEHOLDER) return normalizedKill;
+  return Date.parse(normalizedKill) >= Date.parse(normalizedLoss) ? normalizedKill : normalizedLoss;
+}
+
 export function buildThreatTableRow(row: ThreatRowView, selected: boolean, compact: boolean): ThreatTableRowView {
   const name = dimmedText(row.pilotName);
   const corpTicker = row.corpTicker?.trim() ? `[${row.corpTicker}]` : '';

@@ -65,6 +65,34 @@ function renderTable(rows: ThreatRowView[], visibleColumns = buildVisibility()) 
 }
 
 describe('ThreatTable column schema contract', () => {
+  it('uses the expected default visible column set', () => {
+    const visibleKeys = getThreatTableVisibleColumnKeys(buildVisibility());
+    expect(visibleKeys).toEqual([
+      'pilotName',
+      'corp',
+      'alliance',
+      'score',
+      'threatBand',
+      'kl',
+      'dangerPercent',
+      'lastActivity',
+      'mainShip',
+      'tags',
+    ]);
+  });
+
+  it('keeps hidden-by-default columns available through visibility config', () => {
+    const defaults = getThreatTableVisibleColumnKeys(buildVisibility());
+    expect(defaults).not.toContain('notes');
+    expect(defaults).not.toContain('soloPercent');
+    expect(defaults).not.toContain('avgGangSize');
+
+    const enabled = getThreatTableVisibleColumnKeys(buildVisibility({ notes: true, soloPercent: true, avgGangSize: true }));
+    expect(enabled).toContain('notes');
+    expect(enabled).toContain('soloPercent');
+    expect(enabled).toContain('avgGangSize');
+  });
+
   it('defines deterministic width rules for all default-visible columns', () => {
     const active = computeThreatTableColumns(buildVisibility());
     const visible = active.filter((column) => column.visible);

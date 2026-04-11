@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildThreatTableRow } from '../ThreatTableRow';
+import { buildThreatTableRow, formatKillLossCompact, formatLastActivity } from '../ThreatTableRow';
 import type { ThreatRowView } from '../types';
 
 const blankRow: ThreatRowView = {
@@ -31,6 +31,18 @@ const blankRow: ThreatRowView = {
 };
 
 describe('ThreatTableRow formatting', () => {
+  it('formats compact K/L values for known, partial, and unknown data', () => {
+    expect(formatKillLossCompact(12, 3)).toBe('12/3');
+    expect(formatKillLossCompact(7, null)).toBe('7/—');
+    expect(formatKillLossCompact(null, null)).toBe('—');
+  });
+
+  it('uses latest timestamp for last activity and falls back to placeholder', () => {
+    expect(formatLastActivity('2026-04-10T10:00:00Z', '2026-04-01T10:00:00Z')).toBe('2026-04-10T10:00:00Z');
+    expect(formatLastActivity('2026-03-10T10:00:00Z', '2026-04-01T10:00:00Z')).toBe('2026-04-01T10:00:00Z');
+    expect(formatLastActivity(null, null)).toBe('—');
+  });
+
   it('renders unknown values as subtle placeholders', () => {
     const row = buildThreatTableRow(blankRow, false, false);
 

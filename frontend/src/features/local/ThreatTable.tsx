@@ -1,5 +1,5 @@
 import { useEffect, useMemo, type CSSProperties, type RefObject } from 'react';
-import { buildThreatTableRow, type ThreatTableRowView as RenderedThreatTableRowView } from './ThreatTableRow';
+import { buildThreatTableRow, formatKillLossCompact, formatLastActivity, type ThreatTableRowView as RenderedThreatTableRowView } from './ThreatTableRow';
 import type { ThreatRowView, ThreatTableColumn, ThreatTableOptions } from './types';
 
 export interface ThreatTableHeader {
@@ -31,7 +31,7 @@ export interface ThreatTableView {
 }
 
 type ColumnAlign = 'left' | 'right';
-type ColumnRenderKind = 'identity' | 'text' | 'number' | 'percent' | 'date' | 'tags' | 'notes' | 'threatBand';
+type ColumnRenderKind = 'identity' | 'text' | 'number' | 'percent' | 'date' | 'tags' | 'notes' | 'threatBand' | 'killLoss' | 'lastActivity';
 
 export interface ThreatTableColumnSchema {
   key: ThreatTableColumn;
@@ -49,24 +49,26 @@ export interface ThreatTableColumnSchema {
 export const THREAT_TABLE_COLUMN_SCHEMA: ThreatTableColumnSchema[] = [
   { key: 'pilotName', label: 'Pilot', width: 220, minWidth: 180, maxWidth: 320, align: 'left', visibleByDefault: true, truncate: true, sortable: true, renderKind: 'identity' },
   { key: 'corp', label: 'Corp', width: 180, minWidth: 140, maxWidth: 260, align: 'left', visibleByDefault: true, truncate: true, sortable: true, renderKind: 'text' },
-  { key: 'alliance', label: 'Alliance', width: 180, minWidth: 140, maxWidth: 260, align: 'left', visibleByDefault: false, truncate: true, sortable: true, renderKind: 'text' },
+  { key: 'alliance', label: 'Alliance', width: 180, minWidth: 140, maxWidth: 260, align: 'left', visibleByDefault: true, truncate: true, sortable: true, renderKind: 'text' },
   { key: 'score', label: 'Score', width: 108, minWidth: 88, maxWidth: 132, align: 'right', visibleByDefault: true, truncate: false, sortable: true, renderKind: 'number' },
   { key: 'threatBand', label: 'Band', width: 112, minWidth: 92, maxWidth: 136, align: 'left', visibleByDefault: true, truncate: false, sortable: true, renderKind: 'threatBand' },
-  { key: 'kills', label: 'Kills', width: 84, minWidth: 72, maxWidth: 108, align: 'right', visibleByDefault: true, truncate: false, sortable: true, renderKind: 'number' },
-  { key: 'losses', label: 'Losses', width: 84, minWidth: 72, maxWidth: 108, align: 'right', visibleByDefault: true, truncate: false, sortable: true, renderKind: 'number' },
-  { key: 'dangerPercent', label: 'Danger %', width: 108, minWidth: 90, maxWidth: 132, align: 'right', visibleByDefault: false, truncate: false, sortable: true, renderKind: 'percent' },
+  { key: 'kl', label: 'K/L', width: 88, minWidth: 76, maxWidth: 120, align: 'right', visibleByDefault: true, truncate: false, sortable: true, renderKind: 'killLoss' },
+  { key: 'kills', label: 'Kills', width: 84, minWidth: 72, maxWidth: 108, align: 'right', visibleByDefault: false, truncate: false, sortable: true, renderKind: 'number' },
+  { key: 'losses', label: 'Losses', width: 84, minWidth: 72, maxWidth: 108, align: 'right', visibleByDefault: false, truncate: false, sortable: true, renderKind: 'number' },
+  { key: 'dangerPercent', label: 'Danger', width: 108, minWidth: 90, maxWidth: 132, align: 'right', visibleByDefault: true, truncate: false, sortable: true, renderKind: 'percent' },
   { key: 'soloPercent', label: 'Solo %', width: 108, minWidth: 90, maxWidth: 132, align: 'right', visibleByDefault: false, truncate: false, sortable: true, renderKind: 'percent' },
   { key: 'avgGangSize', label: 'Avg Gang', width: 108, minWidth: 90, maxWidth: 132, align: 'right', visibleByDefault: false, truncate: false, sortable: true, renderKind: 'number' },
-  { key: 'lastKill', label: 'Last Kill', width: 180, minWidth: 140, maxWidth: 240, align: 'left', visibleByDefault: true, truncate: true, sortable: true, renderKind: 'date' },
+  { key: 'lastActivity', label: 'Last activity', width: 180, minWidth: 140, maxWidth: 240, align: 'left', visibleByDefault: true, truncate: true, sortable: true, renderKind: 'lastActivity' },
+  { key: 'lastKill', label: 'Last Kill', width: 180, minWidth: 140, maxWidth: 240, align: 'left', visibleByDefault: false, truncate: true, sortable: true, renderKind: 'date' },
   { key: 'lastLoss', label: 'Last Loss', width: 180, minWidth: 140, maxWidth: 240, align: 'left', visibleByDefault: false, truncate: true, sortable: true, renderKind: 'date' },
-  { key: 'mainShip', label: 'Ship', width: 160, minWidth: 120, maxWidth: 220, align: 'left', visibleByDefault: true, truncate: true, sortable: true, renderKind: 'text' },
+  { key: 'mainShip', label: 'Main ship', width: 160, minWidth: 120, maxWidth: 220, align: 'left', visibleByDefault: true, truncate: true, sortable: true, renderKind: 'text' },
   { key: 'tags', label: 'Tags', width: 188, minWidth: 148, maxWidth: 260, align: 'left', visibleByDefault: true, truncate: true, sortable: false, renderKind: 'tags' },
   { key: 'notes', label: 'Notes', width: 220, minWidth: 180, maxWidth: 320, align: 'left', visibleByDefault: false, truncate: true, sortable: false, renderKind: 'notes' },
 ];
 
 const COLUMN_SCHEMA_BY_KEY = Object.fromEntries(THREAT_TABLE_COLUMN_SCHEMA.map((column) => [column.key, column])) as Record<ThreatTableColumn, ThreatTableColumnSchema>;
-const dateColumns: ThreatTableColumn[] = ['lastKill', 'lastLoss'];
-const numericColumns = new Set<ThreatTableColumn>(['score', 'kills', 'losses', 'dangerPercent', 'soloPercent', 'avgGangSize']);
+const dateColumns: ThreatTableColumn[] = ['lastKill', 'lastLoss', 'lastActivity'];
+const numericColumns = new Set<ThreatTableColumn>(['score', 'kills', 'losses', 'dangerPercent', 'soloPercent', 'avgGangSize', 'kl']);
 
 interface ActiveTableColumn extends ThreatTableColumnSchema {
   visible: boolean;
@@ -79,12 +81,26 @@ function matchFilter(row: ThreatRowView, filterText: string): boolean {
   return haystack.includes(filterText.toLowerCase());
 }
 
+function parseSortableDate(value: string): number {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+}
+
 function compareByColumn(a: ThreatRowView, b: ThreatRowView, column: ThreatTableColumn): number {
+  if (column === 'kl') {
+    const ak = a.kills ?? -1;
+    const bk = b.kills ?? -1;
+    if (ak !== bk) return ak - bk;
+    return (a.losses ?? -1) - (b.losses ?? -1);
+  }
+  if (column === 'lastActivity') {
+    return parseSortableDate(formatLastActivity(a.lastKill, a.lastLoss)) - parseSortableDate(formatLastActivity(b.lastKill, b.lastLoss));
+  }
   if (numericColumns.has(column)) {
     return Number(a[column]) - Number(b[column]);
   }
   if (dateColumns.includes(column)) {
-    return Date.parse(String(a[column])) - Date.parse(String(b[column]));
+    return parseSortableDate(String(a[column])) - parseSortableDate(String(b[column]));
   }
   return String(a[column]).localeCompare(String(b[column]));
 }
@@ -159,6 +175,8 @@ function normalizeValue(value: unknown): string {
 }
 
 function getCellText(row: ThreatRowView, key: ThreatTableColumn): string {
+  if (key === 'kl') return formatKillLossCompact(row.kills, row.losses);
+  if (key === 'lastActivity') return formatLastActivity(row.lastKill, row.lastLoss);
   if (key === 'tags') return normalizeValue(row.tags);
   return normalizeValue(row[key]);
 }
