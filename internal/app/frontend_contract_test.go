@@ -125,8 +125,8 @@ func TestFrontendContractSummaryFieldsSurvivePartialTimestampDetails(t *testing.
 		t.Fatalf("expected one pilot, got %d", len(session.Pilots))
 	}
 	p := session.Pilots[0]
-	if p.Kills != 5 || p.Losses != 2 {
-		t.Fatalf("expected summary kills/losses to remain in DTO, got kills=%d losses=%d", p.Kills, p.Losses)
+	if p.Kills != 1 || p.Losses != 0 {
+		t.Fatalf("expected detail combat volume to override summary while timestamps are partial, got kills=%d losses=%d", p.Kills, p.Losses)
 	}
 	if p.ThreatScore <= 0 || p.ThreatBand == "" {
 		t.Fatalf("expected non-empty score/band in low-confidence DTO, got score=%.2f band=%q", p.ThreatScore, p.ThreatBand)

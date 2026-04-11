@@ -57,14 +57,16 @@ type PilotThreatRecordDTO struct {
 	MainShip    string                   `json:"mainShip"`
 	Notes       string                   `json:"notes"`
 	Tags        []string                 `json:"tags"`
+	Provenance  string                   `json:"provenance"`
 	LastUpdated string                   `json:"lastUpdated"`
 	Freshness   FetchFreshnessDTO        `json:"freshness"`
 }
 
 type FetchFreshnessDTO struct {
-	Source   string `json:"source"`
-	DataAsOf string `json:"dataAsOf"`
-	IsStale  bool   `json:"isStale"`
+	Source     string `json:"source"`
+	DataAsOf   string `json:"dataAsOf"`
+	IsStale    bool   `json:"isStale"`
+	Provenance string `json:"provenance"`
 }
 
 func toAnalysisSessionDTO(in domain.AnalysisSession) AnalysisSessionDTO {
@@ -141,6 +143,7 @@ func toPilotDTO(in domain.PilotThreatRecord, warnings []domain.ProviderWarning) 
 		MainShip:    in.Threat.MainShip,
 		Notes:       in.Threat.Notes,
 		Tags:        append([]string(nil), in.Threat.ThreatReasons...),
+		Provenance:  in.Freshness.Source,
 		LastUpdated: toRFC3339(in.LastUpdated),
 		Freshness:   toFreshnessDTO(in.Freshness),
 	}
@@ -148,9 +151,10 @@ func toPilotDTO(in domain.PilotThreatRecord, warnings []domain.ProviderWarning) 
 
 func toFreshnessDTO(in domain.FetchFreshness) FetchFreshnessDTO {
 	return FetchFreshnessDTO{
-		Source:   in.Source,
-		DataAsOf: toRFC3339(in.DataAsOf),
-		IsStale:  in.IsStale,
+		Source:     in.Source,
+		DataAsOf:   toRFC3339(in.DataAsOf),
+		IsStale:    in.IsStale,
+		Provenance: in.Source,
 	}
 }
 

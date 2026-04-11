@@ -90,4 +90,7 @@ func TestToPilotDTOExportsThreatScoreAndBandForLowConfidenceCases(t *testing.T) 
 	if dto.Kills != 6 || dto.Losses != 2 {
 		t.Fatalf("expected summary stats in DTO, got kills=%d losses=%d", dto.Kills, dto.Losses)
 	}
+	if dto.Provenance != "zkill" || dto.Freshness.Provenance != "zkill" {
+		t.Fatalf("expected provenance fields to mirror freshness source, got pilot=%q freshness=%q", dto.Provenance, dto.Freshness.Provenance)
+	}
 }

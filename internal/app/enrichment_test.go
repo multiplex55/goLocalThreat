@@ -65,18 +65,22 @@ func TestFetchDetailsInvalidTimesStillPopulateNonTimeDerivations(t *testing.T) {
 		Threat:   domain.ThreatBreakdown{RecentKills: 4},
 	}}
 
-	warnings := svc.fetchDetails(context.Background(), pilots, []int64{101})
-	if pilots[0].Threat.MainShip != "ShipType #111" {
-		t.Fatalf("expected main ship derived from detail rows, got %q", pilots[0].Threat.MainShip)
+	detailEvidence, warnings := svc.fetchDetails(context.Background(), pilots, []int64{101})
+	merged, freshness, provenance := mergePilotThreat(zkill.SummaryRow{RecentKills: 4}, detailEvidence[101], svc.settings.RefreshInterval, now)
+	if merged.MainShip != "ShipType #111" {
+		t.Fatalf("expected main ship derived from detail rows, got %q", merged.MainShip)
 	}
-	if pilots[0].Threat.SoloPercent != 50 {
-		t.Fatalf("expected solo percentage to include invalid-time kills, got %v", pilots[0].Threat.SoloPercent)
+	if merged.SoloPercent != 50 {
+		t.Fatalf("expected solo percentage to include invalid-time kills, got %v", merged.SoloPercent)
 	}
-	if pilots[0].Threat.AvgGangSize != 2 {
-		t.Fatalf("expected avg gang size to include invalid-time kills, got %v", pilots[0].Threat.AvgGangSize)
+	if merged.AvgGangSize != 2 {
+		t.Fatalf("expected avg gang size to include invalid-time kills, got %v", merged.AvgGangSize)
 	}
-	if pilots[0].Threat.Notes == "" {
+	if merged.Notes == "" {
 		t.Fatalf("expected notes to be populated")
+	}
+	if freshness.Source == "" || provenance == "" {
+		t.Fatalf("expected provenance/freshness source to be populated")
 	}
 	foundInvalid := false
 	for _, w := range warnings {
@@ -109,15 +113,13 @@ func TestFetchDetailsNoValidTimesWarnsButKeepsNonTimeEnrichment(t *testing.T) {
 		Threat:   domain.ThreatBreakdown{RecentKills: 2},
 	}}
 
-	warnings := svc.fetchDetails(context.Background(), pilots, []int64{303})
-	if pilots[0].Threat.MainShip != "ShipType #900" {
-		t.Fatalf("expected non-time enrichment to remain, got %q", pilots[0].Threat.MainShip)
+	detailEvidence, warnings := svc.fetchDetails(context.Background(), pilots, []int64{303})
+	merged, _, _ := mergePilotThreat(zkill.SummaryRow{RecentKills: 2}, detailEvidence[303], svc.settings.RefreshInterval, time.Now().UTC())
+	if merged.MainShip != "ShipType #900" {
+		t.Fatalf("expected non-time enrichment to remain, got %q", merged.MainShip)
 	}
-	if pilots[0].Threat.SoloPercent != 50 {
-		t.Fatalf("expected solo percent to be preserved, got %v", pilots[0].Threat.SoloPercent)
-	}
-	if pilots[0].Freshness.Source != "" {
-		t.Fatalf("expected freshness unchanged when no valid times, got %#v", pilots[0].Freshness)
+	if merged.SoloPercent != 50 {
+		t.Fatalf("expected solo percent to be preserved, got %v", merged.SoloPercent)
 	}
 	foundInvalid := false
 	foundMissing := false
