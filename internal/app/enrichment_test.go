@@ -82,6 +82,12 @@ func TestFetchDetailsInvalidTimesStillPopulateNonTimeDerivations(t *testing.T) {
 	for _, w := range warnings {
 		if w.Code == "DETAIL_TIME_INVALID" && w.CharacterID != nil && *w.CharacterID == 101 {
 			foundInvalid = true
+			if w.Metadata["coalesceKey"] != "zkill:detail_time_invalid" {
+				t.Fatalf("expected coalesce key metadata, got %#v", w.Metadata)
+			}
+			if w.Metadata["timestampFailures"] != "2" || w.Metadata["timestampMissing"] != "0" || w.Metadata["timestampUnparseable"] != "2" {
+				t.Fatalf("unexpected timestamp metadata: %#v", w.Metadata)
+			}
 		}
 	}
 	if !foundInvalid {
@@ -118,9 +124,15 @@ func TestFetchDetailsNoValidTimesWarnsButKeepsNonTimeEnrichment(t *testing.T) {
 	for _, w := range warnings {
 		if w.CharacterID != nil && *w.CharacterID == 303 && w.Code == "DETAIL_TIME_INVALID" {
 			foundInvalid = true
+			if w.Metadata["timestampMissing"] != "0" {
+				t.Fatalf("expected missing=0 for legacy invalid rows, got %#v", w.Metadata)
+			}
 		}
 		if w.CharacterID != nil && *w.CharacterID == 303 && w.Code == "DETAIL_TIME_MISSING" {
 			foundMissing = true
+			if w.Metadata["coalesceKey"] != "zkill:detail_time_missing" || w.Metadata["timestampFailures"] != "2" {
+				t.Fatalf("expected coalescing metadata on missing warning, got %#v", w.Metadata)
+			}
 		}
 	}
 	if !foundInvalid || !foundMissing {

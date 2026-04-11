@@ -465,6 +465,7 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 			var lastKill time.Time
 			var lastLoss time.Time
 			invalidOccurredAt := 0
+			missingOccurredAt := 0
 			validOccurredAt := 0
 			soloKills := 0
 			totalAttackers := 0
@@ -473,6 +474,9 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 			for _, km := range kms {
 				if km.OccurredAtInvalid {
 					invalidOccurredAt++
+					if km.OccurredAtIssue == zkill.KillmailTimeIssueMissing {
+						missingOccurredAt++
+					}
 				}
 				if km.VictimID == id {
 					if !km.OccurredAt.IsZero() {
@@ -516,6 +520,12 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 					Severity:      severityForWarningCode("DETAIL_TIME_INVALID"),
 					UserVisible:   userVisibleForWarningCode("DETAIL_TIME_INVALID"),
 					Category:      categoryForWarningCode("DETAIL_TIME_INVALID"),
+					Metadata: map[string]string{
+						"coalesceKey":          "zkill:detail_time_invalid",
+						"timestampFailures":    fmt.Sprintf("%d", invalidOccurredAt),
+						"timestampMissing":     fmt.Sprintf("%d", missingOccurredAt),
+						"timestampUnparseable": fmt.Sprintf("%d", invalidOccurredAt-missingOccurredAt),
+					},
 				})
 			}
 			if !lastKill.IsZero() {
@@ -555,6 +565,10 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 					Severity:      severityForWarningCode("DETAIL_TIME_MISSING"),
 					UserVisible:   userVisibleForWarningCode("DETAIL_TIME_MISSING"),
 					Category:      categoryForWarningCode("DETAIL_TIME_MISSING"),
+					Metadata: map[string]string{
+						"coalesceKey":       "zkill:detail_time_missing",
+						"timestampFailures": fmt.Sprintf("%d", invalidOccurredAt),
+					},
 				})
 				return
 			}

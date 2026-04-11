@@ -1,0 +1,11 @@
+[
+  {
+    "killmail_id": 7003,
+    "zkb_time": "",
+    "killmail_time": "",
+    "time": "",
+    "solar_system_id": 30000146,
+    "victim": {"character_id": 9003, "ship_type_id": 589, "damage_taken": 32345},
+    "attackers": [{"character_id": 400}, {"character_id": 500}, {"character_id": 600}]
+  }
+]
