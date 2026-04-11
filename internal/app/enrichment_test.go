@@ -69,10 +69,10 @@ func TestFetchDetailsInvalidTimesStillPopulateNonTimeDerivations(t *testing.T) {
 	if pilots[0].Threat.MainShip != "ShipType #111" {
 		t.Fatalf("expected main ship derived from detail rows, got %q", pilots[0].Threat.MainShip)
 	}
-	if pilots[0].Threat.SoloPercent != 25 {
+	if pilots[0].Threat.SoloPercent != 50 {
 		t.Fatalf("expected solo percentage to include invalid-time kills, got %v", pilots[0].Threat.SoloPercent)
 	}
-	if pilots[0].Threat.AvgGangSize != 1 {
+	if pilots[0].Threat.AvgGangSize != 2 {
 		t.Fatalf("expected avg gang size to include invalid-time kills, got %v", pilots[0].Threat.AvgGangSize)
 	}
 	if pilots[0].Threat.Notes == "" {

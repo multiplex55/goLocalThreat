@@ -2,7 +2,9 @@ package app_test
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
+	"time"
 
 	"golocalthreat/internal/app"
 	"golocalthreat/internal/domain"
@@ -96,6 +98,42 @@ func TestFrontendContractAnalyzePastedTextShape(t *testing.T) {
 	mustHaveKeys(t, pilotFreshness, "source", "dataAsOf", "isStale")
 	mustBeString(t, pilotFreshness, "source")
 	mustBeString(t, pilotFreshness, "dataAsOf")
+}
+
+func TestFrontendContractSummaryFieldsSurvivePartialTimestampDetails(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	svc := app.NewAppServiceWithProviders(
+		mockESIProvider{
+			resolved: esi.ResolvedNames{Characters: map[string]int64{"Alice": 101}},
+			idents:   []domain.CharacterIdentity{{CharacterID: 101, Name: "Alice"}},
+		},
+		mockZKillProvider{
+			summaries: map[int64]zkill.SummaryRow{
+				101: {CharacterID: 101, RecentKills: 5, RecentLosses: 2, DangerRatio: 0.9, LastActivity: now.Add(-time.Hour)},
+			},
+			details: map[int64][]zkill.Killmail{
+				101: {{KillID: 1, OccurredAtInvalid: true, ShipTypeID: 555}},
+			},
+		},
+	)
+
+	session, err := svc.AnalyzePastedText("Alice")
+	if err != nil {
+		t.Fatalf("AnalyzePastedText err: %v", err)
+	}
+	if len(session.Pilots) != 1 {
+		t.Fatalf("expected one pilot, got %d", len(session.Pilots))
+	}
+	p := session.Pilots[0]
+	if p.Kills != 5 || p.Losses != 2 {
+		t.Fatalf("expected summary kills/losses to remain in DTO, got kills=%d losses=%d", p.Kills, p.Losses)
+	}
+	if p.ThreatScore <= 0 || p.ThreatBand == "" {
+		t.Fatalf("expected non-empty score/band in low-confidence DTO, got score=%.2f band=%q", p.ThreatScore, p.ThreatBand)
+	}
+	if !strings.Contains(strings.ToLower(p.Notes), "partial timestamps") {
+		t.Fatalf("expected partial timestamp notes, got %q", p.Notes)
+	}
 }
 
 func TestFrontendContractSettingsShape(t *testing.T) {

@@ -468,6 +468,7 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 			validOccurredAt := 0
 			soloKills := 0
 			totalAttackers := 0
+			killmailKills := 0
 			shipCounts := map[int64]int{}
 			for _, km := range kms {
 				if km.OccurredAtInvalid {
@@ -481,6 +482,7 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 						}
 					}
 				} else {
+					killmailKills++
 					if !km.OccurredAt.IsZero() {
 						occurredAt := km.OccurredAt.UTC()
 						if lastKill.IsZero() || occurredAt.After(lastKill) {
@@ -522,9 +524,9 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 			if !lastLoss.IsZero() {
 				pilots[idx].Threat.LastLoss = lastLoss
 			}
-			if pilots[idx].Threat.RecentKills > 0 {
-				pilots[idx].Threat.SoloPercent = (float64(soloKills) / float64(pilots[idx].Threat.RecentKills)) * 100
-				pilots[idx].Threat.AvgGangSize = float64(totalAttackers) / float64(pilots[idx].Threat.RecentKills)
+			if killmailKills > 0 {
+				pilots[idx].Threat.SoloPercent = (float64(soloKills) / float64(killmailKills)) * 100
+				pilots[idx].Threat.AvgGangSize = float64(totalAttackers) / float64(killmailKills)
 			}
 			bestShipID := int64(0)
 			bestCount := 0
@@ -537,7 +539,11 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 			if bestShipID > 0 {
 				pilots[idx].Threat.MainShip = fmt.Sprintf("ShipType #%d", bestShipID)
 			}
-			pilots[idx].Threat.Notes = fmt.Sprintf("detail killmails: %d", len(kms))
+			notes := []string{fmt.Sprintf("summary + detail killmails: %d", len(kms))}
+			if invalidOccurredAt > 0 {
+				notes = append(notes, fmt.Sprintf("partial timestamps: %d/%d killmails", invalidOccurredAt, len(kms)))
+			}
+			pilots[idx].Threat.Notes = strings.Join(notes, "; ")
 			if validOccurredAt == 0 {
 				ident := pilots[idx].Identity
 				warnings = append(warnings, domain.ProviderWarning{
@@ -637,7 +643,7 @@ func warningMessageForCode(code string, fallback string) string {
 	case "DETAIL_TIME_INVALID":
 		return "Partial zKill timestamps"
 	case "DETAIL_TIME_MISSING":
-		return "Recent activity timing incomplete"
+		return "Recent activity has partial timestamps"
 	default:
 		return fallback
 	}

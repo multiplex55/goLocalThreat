@@ -36,7 +36,7 @@ func TestWarningCodeMapsToUserFacingMessage(t *testing.T) {
 	if got := warningMessageForCode("DETAIL_TIME_INVALID", "fallback"); got != "Partial zKill timestamps" {
 		t.Fatalf("unexpected mapped message for DETAIL_TIME_INVALID: %q", got)
 	}
-	if got := warningMessageForCode("DETAIL_TIME_MISSING", "fallback"); got != "Recent activity timing incomplete" {
+	if got := warningMessageForCode("DETAIL_TIME_MISSING", "fallback"); got != "Recent activity has partial timestamps" {
 		t.Fatalf("unexpected mapped message for DETAIL_TIME_MISSING: %q", got)
 	}
 }
