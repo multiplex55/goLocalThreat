@@ -5,6 +5,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -111,8 +113,17 @@ func TestKillmailClientRequiresCharacterID(t *testing.T) {
 	}
 }
 
+func mustLoadFixture(t *testing.T, name string) []byte {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join("testdata", name))
+	if err != nil {
+		t.Fatalf("read fixture %s: %v", name, err)
+	}
+	return body
+}
+
 func TestParseKillmailsValidRFC3339SetsOccurredAt(t *testing.T) {
-	body := []byte(`[{"killmail_id":7,"zkb_time":"2026-04-10T12:34:56Z"}]`)
+	body := mustLoadFixture(t, "killmail_valid_canonical_time.json")
 	items, invalidCount, err := parseKillmails(body)
 	if err != nil {
 		t.Fatalf("parseKillmails err: %v", err)
@@ -129,10 +140,13 @@ func TestParseKillmailsValidRFC3339SetsOccurredAt(t *testing.T) {
 	if items[0].OccurredAtInvalid {
 		t.Fatal("expected OccurredAtInvalid=false for valid timestamp")
 	}
+	if items[0].OccurredAtIssue != KillmailTimeIssueNone {
+		t.Fatalf("unexpected issue reason: %q", items[0].OccurredAtIssue)
+	}
 }
 
 func TestParseKillmailsParsesFallbackKillmailTime(t *testing.T) {
-	body := []byte(`[{"killmail_id":12,"killmail_time":"2026-04-10T13:34:56Z"}]`)
+	body := mustLoadFixture(t, "killmail_alternate_valid_time.json")
 	items, invalidCount, err := parseKillmails(body)
 	if err != nil {
 		t.Fatalf("parseKillmails err: %v", err)
@@ -149,10 +163,13 @@ func TestParseKillmailsParsesFallbackKillmailTime(t *testing.T) {
 	if items[0].OccurredAtInvalid {
 		t.Fatal("expected OccurredAtInvalid=false for fallback timestamp")
 	}
+	if items[0].OccurredAtIssue != KillmailTimeIssueNone {
+		t.Fatalf("unexpected issue reason: %q", items[0].OccurredAtIssue)
+	}
 }
 
 func TestParseKillmailsInvalidTimestampCountsAndLeavesZeroOccurredAt(t *testing.T) {
-	body := []byte(`[{"killmail_id":8,"zkb_time":"not-a-time"}]`)
+	body := mustLoadFixture(t, "killmail_invalid_time_string.json")
 	items, invalidCount, err := parseKillmails(body)
 	if err != nil {
 		t.Fatalf("parseKillmails err: %v", err)
@@ -168,6 +185,12 @@ func TestParseKillmailsInvalidTimestampCountsAndLeavesZeroOccurredAt(t *testing.
 	}
 	if !items[0].OccurredAtInvalid {
 		t.Fatal("expected OccurredAtInvalid=true for invalid timestamp")
+	}
+	if items[0].OccurredAtIssue != KillmailTimeIssueInvalid {
+		t.Fatalf("expected invalid issue reason, got %q", items[0].OccurredAtIssue)
+	}
+	if items[0].VictimID == 0 || items[0].ShipTypeID == 0 || items[0].SystemID == 0 || items[0].Attackers == 0 {
+		t.Fatalf("expected non-time fields to survive invalid timestamp, got %#v", items[0])
 	}
 }
 
@@ -200,7 +223,7 @@ func TestParseKillmailsMixedPayloadPreservesOrderAndCountsInvalidTimes(t *testin
 }
 
 func TestParseKillmailsEmptyTimestampCountedAsMissing(t *testing.T) {
-	body := []byte(`[{"killmail_id":9,"zkb_time":"","killmail_time":"","time":""}]`)
+	body := mustLoadFixture(t, "killmail_missing_time.json")
 	items, invalidCount, err := parseKillmails(body)
 	if err != nil {
 		t.Fatalf("parseKillmails err: %v", err)
@@ -216,6 +239,12 @@ func TestParseKillmailsEmptyTimestampCountedAsMissing(t *testing.T) {
 	}
 	if !items[0].OccurredAtInvalid {
 		t.Fatal("expected OccurredAtInvalid=true for empty timestamp")
+	}
+	if items[0].OccurredAtIssue != KillmailTimeIssueMissing {
+		t.Fatalf("expected missing issue reason, got %q", items[0].OccurredAtIssue)
+	}
+	if items[0].VictimID == 0 || items[0].ShipTypeID == 0 || items[0].SystemID == 0 || items[0].Attackers == 0 {
+		t.Fatalf("expected non-time fields to survive missing timestamp, got %#v", items[0])
 	}
 }
 
@@ -253,5 +282,33 @@ func TestParseZKillTimeParsesRFC3339First(t *testing.T) {
 	want := time.Date(2026, 4, 10, 12, 34, 56, 0, time.UTC)
 	if !got.Equal(want) {
 		t.Fatalf("parsed time = %s, want %s", got, want)
+	}
+}
+
+func TestParseKillmailsMixedValidityStillSupportsDetailSummariesAndMainShip(t *testing.T) {
+	body := []byte(`[
+		{"killmail_id":1,"zkb_time":"2026-04-10T12:00:00Z","solar_system_id":30000142,"victim":{"character_id":7000,"ship_type_id":900,"damage_taken":10},"attackers":[{"character_id":1}]},
+		{"killmail_id":2,"zkb_time":"bad-time","solar_system_id":30000142,"victim":{"character_id":7001,"ship_type_id":900,"damage_taken":20},"attackers":[{"character_id":2},{"character_id":3}]},
+		{"killmail_id":3,"time":"","solar_system_id":30000142,"victim":{"character_id":7002,"ship_type_id":901,"damage_taken":30},"attackers":[{"character_id":4}]}
+	]`)
+	items, invalidCount, err := parseKillmails(body)
+	if err != nil {
+		t.Fatalf("parseKillmails err: %v", err)
+	}
+	if invalidCount != 2 {
+		t.Fatalf("invalidCount = %d, want 2", invalidCount)
+	}
+	shipCounts := map[int64]int{}
+	for _, km := range items {
+		shipCounts[km.ShipTypeID]++
+		if km.SystemID == 0 || km.VictimID == 0 || km.Attackers == 0 {
+			t.Fatalf("expected detail fields for all rows, got %#v", km)
+		}
+	}
+	if shipCounts[900] != 2 {
+		t.Fatalf("expected mainShip derivation input to remain intact, counts=%v", shipCounts)
+	}
+	if items[1].OccurredAtIssue != KillmailTimeIssueInvalid || items[2].OccurredAtIssue != KillmailTimeIssueMissing {
+		t.Fatalf("expected reason classifications invalid/missing, got %q and %q", items[1].OccurredAtIssue, items[2].OccurredAtIssue)
 	}
 }

@@ -57,10 +57,19 @@ func (s SummaryRow) ToThreatBreakdown() domain.ThreatBreakdown {
 	}
 }
 
+type KillmailTimeIssue string
+
+const (
+	KillmailTimeIssueNone    KillmailTimeIssue = ""
+	KillmailTimeIssueMissing KillmailTimeIssue = "missing"
+	KillmailTimeIssueInvalid KillmailTimeIssue = "invalid"
+)
+
 type Killmail struct {
 	KillID            int64
 	OccurredAt        time.Time
 	OccurredAtInvalid bool
+	OccurredAtIssue   KillmailTimeIssue
 	VictimID          int64
 	Attackers         int
 	ShipTypeID        int64
