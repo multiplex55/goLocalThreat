@@ -8,7 +8,6 @@ function toThreatBand(band: string | undefined): ThreatBand {
   return 'unknown';
 }
 
-
 function nullableText(value: string | undefined): string | null {
   return typeof value === 'string' && value.trim().length > 0 ? value : null;
 }
@@ -21,24 +20,167 @@ function normalizeTimestampOrNull(value: string | undefined): string | null {
   return normalized;
 }
 
-function pickPreferredNonZeroNumber(primary: number | null | undefined, secondary: number | null | undefined): number | null {
-  const hasPrimary = typeof primary === 'number';
-  const hasSecondary = typeof secondary === 'number';
-  if (hasPrimary && primary !== 0) return primary;
-  if (hasSecondary && secondary !== 0) return secondary;
-  if (hasPrimary) return primary;
-  if (hasSecondary) return secondary;
-  return null;
+type ValueState = 'present' | 'missing' | 'not_fetched';
+type SourcePriority = 'detail' | 'summary';
+
+type MetricDefinition<TValue> = {
+  source: {
+    detail: (pilot: AppService.PilotThreatDTO) => TValue | undefined;
+    summary: (pilot: AppService.PilotThreatDTO) => TValue | undefined;
+  };
+  transform: (value: TValue | undefined) => TValue | null | undefined;
+  fallbackOrder: SourcePriority[];
+  allowSummaryFallbackWhenDetailMissing: boolean;
+  shouldAccept: (value: TValue | null | undefined) => boolean;
+};
+
+type MetricResolution<TValue> = {
+  value: TValue | null | undefined;
+  state: ValueState;
+  sourceUsed: SourcePriority | null;
+};
+
+const isNumeric = (value: number | null | undefined): value is number => typeof value === 'number' && Number.isFinite(value);
+const isNonEmptyText = (value: string | null | undefined): value is string => typeof value === 'string' && value.trim().length > 0;
+const passthrough = <T>(value: T | undefined): T | undefined => value;
+
+const metricDefinitions = {
+  kills: {
+    source: { detail: (pilot) => pilot.threat?.recentKills, summary: (pilot) => pilot.kills },
+    transform: passthrough<number>,
+    fallbackOrder: ['detail', 'summary'],
+    allowSummaryFallbackWhenDetailMissing: true,
+    shouldAccept: isNumeric,
+  },
+  losses: {
+    source: { detail: (pilot) => pilot.threat?.recentLosses, summary: (pilot) => pilot.losses },
+    transform: passthrough<number>,
+    fallbackOrder: ['detail', 'summary'],
+    allowSummaryFallbackWhenDetailMissing: true,
+    shouldAccept: isNumeric,
+  },
+  dangerPercent: {
+    source: { detail: (pilot) => pilot.threat?.dangerPercent, summary: (pilot) => pilot.dangerPercent },
+    transform: passthrough<number>,
+    fallbackOrder: ['detail', 'summary'],
+    allowSummaryFallbackWhenDetailMissing: true,
+    shouldAccept: isNumeric,
+  },
+  soloPercent: {
+    source: { detail: (pilot) => pilot.threat?.soloPercent, summary: (pilot) => pilot.soloPercent },
+    transform: passthrough<number>,
+    fallbackOrder: ['detail', 'summary'],
+    allowSummaryFallbackWhenDetailMissing: true,
+    shouldAccept: isNumeric,
+  },
+  avgGangSize: {
+    source: { detail: (pilot) => pilot.threat?.avgGangSize, summary: (pilot) => pilot.avgGangSize },
+    transform: passthrough<number>,
+    fallbackOrder: ['detail', 'summary'],
+    allowSummaryFallbackWhenDetailMissing: true,
+    shouldAccept: isNumeric,
+  },
+  mainShip: {
+    source: { detail: (pilot) => pilot.threat?.mainShip, summary: (pilot) => pilot.mainShip },
+    transform: nullableText,
+    fallbackOrder: ['detail', 'summary'],
+    allowSummaryFallbackWhenDetailMissing: true,
+    shouldAccept: isNonEmptyText,
+  },
+  lastKill: {
+    source: { detail: (pilot) => pilot.threat?.lastKill, summary: (pilot) => pilot.lastKill },
+    transform: normalizeTimestampOrNull,
+    fallbackOrder: ['detail', 'summary'],
+    allowSummaryFallbackWhenDetailMissing: true,
+    shouldAccept: isNonEmptyText,
+  },
+  lastLoss: {
+    source: { detail: (pilot) => pilot.threat?.lastLoss, summary: (pilot) => pilot.lastLoss },
+    transform: normalizeTimestampOrNull,
+    fallbackOrder: ['detail', 'summary'],
+    allowSummaryFallbackWhenDetailMissing: true,
+    shouldAccept: isNonEmptyText,
+  },
+} satisfies Record<'kills' | 'losses' | 'dangerPercent' | 'soloPercent' | 'avgGangSize' | 'mainShip' | 'lastKill' | 'lastLoss', MetricDefinition<number | string>>;
+
+function resolveMetric<TValue>(pilot: AppService.PilotThreatDTO, definition: MetricDefinition<TValue>): MetricResolution<TValue> {
+  const detailValue = definition.transform(definition.source.detail(pilot));
+  const summaryValue = definition.transform(definition.source.summary(pilot));
+
+  for (const source of definition.fallbackOrder) {
+    const candidate = source === 'detail' ? detailValue : summaryValue;
+    if (definition.shouldAccept(candidate)) {
+      return { value: candidate, state: 'present', sourceUsed: source };
+    }
+  }
+
+  // Null means explicitly known-empty; undefined means intentionally not-fetched.
+  if (detailValue === null || summaryValue === null) {
+    if (definition.allowSummaryFallbackWhenDetailMissing && definition.shouldAccept(summaryValue)) {
+      return { value: summaryValue, state: 'present', sourceUsed: 'summary' };
+    }
+    return { value: null, state: 'missing', sourceUsed: null };
+  }
+
+  if (definition.allowSummaryFallbackWhenDetailMissing && definition.shouldAccept(summaryValue)) {
+    return { value: summaryValue, state: 'present', sourceUsed: 'summary' };
+  }
+
+  return { value: undefined, state: 'not_fetched', sourceUsed: null };
 }
 
-function pickPreferredPercent(primary: number | null | undefined, secondary: number | null | undefined): number | null {
-  const preferred = pickPreferredNonZeroNumber(primary, secondary);
-  if (preferred !== null && preferred !== 0) return preferred;
-  return null;
-}
+function resolvePilotMetrics(pilot: AppService.PilotThreatDTO) {
+  const metrics = {
+    kills: resolveMetric(pilot, metricDefinitions.kills),
+    losses: resolveMetric(pilot, metricDefinitions.losses),
+    dangerPercent: resolveMetric(pilot, metricDefinitions.dangerPercent),
+    soloPercent: resolveMetric(pilot, metricDefinitions.soloPercent),
+    avgGangSize: resolveMetric(pilot, metricDefinitions.avgGangSize),
+    mainShip: resolveMetric(pilot, metricDefinitions.mainShip),
+    lastKill: resolveMetric(pilot, metricDefinitions.lastKill),
+    lastLoss: resolveMetric(pilot, metricDefinitions.lastLoss),
+  };
 
-function pickPreferredNonEmptyText(primary: string | undefined, secondary: string | undefined): string | null {
-  return nullableText(primary) ?? nullableText(secondary);
+
+  const detailMainShip = nullableText(pilot.threat?.mainShip);
+  const detailLastKill = normalizeTimestampOrNull(pilot.threat?.lastKill);
+  const detailLastLoss = normalizeTimestampOrNull(pilot.threat?.lastLoss);
+  const detailNumericValues = [
+    pilot.threat?.recentKills,
+    pilot.threat?.recentLosses,
+    pilot.threat?.dangerPercent,
+    pilot.threat?.soloPercent,
+    pilot.threat?.avgGangSize,
+  ];
+  const detailLooksDefaulted = detailNumericValues.every((value) => value === undefined || value === 0)
+    && !detailMainShip
+    && !detailLastKill
+    && !detailLastLoss;
+
+  if (detailLooksDefaulted) {
+    (['kills', 'losses', 'dangerPercent', 'soloPercent', 'avgGangSize'] as const).forEach((key) => {
+      const summaryCandidate = metricDefinitions[key].transform(metricDefinitions[key].source.summary(pilot));
+      if (metrics[key].sourceUsed === 'detail' && metrics[key].value === 0 && isNumeric(summaryCandidate) && summaryCandidate > 0) {
+        metrics[key] = { value: summaryCandidate, state: 'present', sourceUsed: 'summary' };
+      }
+    });
+  }
+
+  // Regression guard: when score is populated but submetrics are all default-zero, preserve unknowns.
+  const hasScoredThreat = (pilot.threat?.threatScore ?? pilot.threatScore ?? 0) > 0;
+  const zeroLikeNumericMetrics = [metrics.kills.value, metrics.losses.value, metrics.dangerPercent.value, metrics.soloPercent.value, metrics.avgGangSize.value]
+    .every((value) => value === 0 || value === null || value === undefined);
+  const noSupportingDetails = [metrics.mainShip.value, metrics.lastKill.value, metrics.lastLoss.value].every((value) => value === null || value === undefined);
+
+  if (hasScoredThreat && zeroLikeNumericMetrics && noSupportingDetails) {
+    (['kills', 'losses', 'dangerPercent', 'soloPercent', 'avgGangSize'] as const).forEach((key) => {
+      if (metrics[key].value === 0) {
+        metrics[key] = { value: null, state: 'missing', sourceUsed: metrics[key].sourceUsed };
+      }
+    });
+  }
+
+  return metrics;
 }
 
 function pickPreferredThreatBand(primary: string | undefined, secondary: string | undefined): ThreatBand {
@@ -69,28 +211,37 @@ function toWarningView(warning: AppService.ParseWarningDTO): ParseWarningView {
 }
 
 function toPilotView(pilot: AppService.PilotThreatDTO, warnings: ParseWarningView[]): PilotThreatView {
-  const identity = pilot.identity;
-  const threatScore = pickPreferredNonZeroNumber(pilot.threat?.threatScore, pilot.threatScore);
+  const resolvedThreatScore = resolveMetric(pilot, {
+    source: { detail: (entry) => entry.threat?.threatScore, summary: (entry) => entry.threatScore },
+    transform: passthrough<number>,
+    fallbackOrder: ['detail', 'summary'],
+    allowSummaryFallbackWhenDetailMissing: true,
+    shouldAccept: isNumeric,
+  }).value;
+  const threatScore = resolvedThreatScore === 0 && pilot.threatScore > 0 ? pilot.threatScore : resolvedThreatScore;
   const resolvedThreatBand = pickPreferredThreatBand(pilot.threat?.threatBand, pilot.threatBand);
+  const metrics = resolvePilotMetrics(pilot);
 
   if (import.meta.env.DEV && typeof window !== 'undefined') {
     const debugPilotId = (window as Window & { __LOCAL_THREAT_DEBUG_PILOT_ID__?: string }).__LOCAL_THREAT_DEBUG_PILOT_ID__;
-    if (debugPilotId && debugPilotId === String(identity.characterId)) {
+    if (debugPilotId && debugPilotId === String(pilot.identity.characterId)) {
       console.debug('[adapter:pilot-boundary]', {
-        pilotId: String(identity.characterId),
-        kills: pickPreferredNonZeroNumber(pilot.threat?.recentKills, pilot.kills),
-        losses: pickPreferredNonZeroNumber(pilot.threat?.recentLosses, pilot.losses),
-        dangerPercent: pickPreferredNonZeroNumber(pilot.threat?.dangerPercent, pilot.dangerPercent),
-        soloPercent: pickPreferredNonZeroNumber(pilot.threat?.soloPercent, pilot.soloPercent),
-        avgGangSize: pickPreferredNonZeroNumber(pilot.threat?.avgGangSize, pilot.avgGangSize),
-        mainShip: pickPreferredNonEmptyText(pilot.threat?.mainShip, pilot.mainShip),
-        lastKill: normalizeTimestampOrNull(pilot.threat?.lastKill) ?? normalizeTimestampOrNull(pilot.lastKill),
-        lastLoss: normalizeTimestampOrNull(pilot.threat?.lastLoss) ?? normalizeTimestampOrNull(pilot.lastLoss),
+        pilotId: String(pilot.identity.characterId),
+        metrics,
         threatScore,
         threatBand: resolvedThreatBand,
       });
     }
   }
+
+  const identity = pilot.identity;
+  const derivedReasons = pilot.threat?.threatReasons ?? [];
+  const hasAnyResolvedActivity = [metrics.kills.value, metrics.losses.value, metrics.dangerPercent.value, metrics.soloPercent.value, metrics.avgGangSize.value]
+    .some((value) => typeof value === 'number' && value > 0)
+    || Boolean(metrics.mainShip.value || metrics.lastKill.value || metrics.lastLoss.value);
+  const reasons = derivedReasons.length > 0
+    ? derivedReasons
+    : (hasAnyResolvedActivity && ((threatScore as number | null | undefined) ?? 0) > 0 ? ['activity_observed'] : []);
 
   return {
     id: String(identity.characterId),
@@ -107,20 +258,20 @@ function toPilotView(pilot: AppService.PilotThreatDTO, warnings: ParseWarningVie
         allianceId: identity.allianceId ?? null,
       },
     },
-    score: Math.round(threatScore ?? 0),
+    score: Math.round((threatScore as number | null | undefined) ?? 0),
     band: resolvedThreatBand,
     confidence: pilot.threat?.confidence ?? 0,
-    reasons: pilot.threat?.threatReasons ?? [],
+    reasons,
     tags: pilot.tags ?? [],
     notes: nullableText(pilot.threat?.notes ?? pilot.notes),
-    kills: pickPreferredNonZeroNumber(pilot.threat?.recentKills, pilot.kills),
-    losses: pickPreferredNonZeroNumber(pilot.threat?.recentLosses, pilot.losses),
-    dangerPercent: pickPreferredPercent(pilot.threat?.dangerPercent, pilot.dangerPercent),
-    soloPercent: pickPreferredPercent(pilot.threat?.soloPercent, pilot.soloPercent),
-    avgGangSize: pickPreferredNonZeroNumber(pilot.threat?.avgGangSize, pilot.avgGangSize),
-    mainShip: pickPreferredNonEmptyText(pilot.threat?.mainShip, pilot.mainShip),
-    lastKill: normalizeTimestampOrNull(pilot.threat?.lastKill) ?? normalizeTimestampOrNull(pilot.lastKill),
-    lastLoss: normalizeTimestampOrNull(pilot.threat?.lastLoss) ?? normalizeTimestampOrNull(pilot.lastLoss),
+    kills: metrics.kills.value as number | null | undefined,
+    losses: metrics.losses.value as number | null | undefined,
+    dangerPercent: metrics.dangerPercent.value as number | null | undefined,
+    soloPercent: metrics.soloPercent.value as number | null | undefined,
+    avgGangSize: metrics.avgGangSize.value as number | null | undefined,
+    mainShip: metrics.mainShip.value as string | null | undefined,
+    lastKill: metrics.lastKill.value as string | null | undefined,
+    lastLoss: metrics.lastLoss.value as string | null | undefined,
     freshness: {
       source: nullableText(pilot.freshness?.source),
       dataAsOf: normalizeTimestampOrNull(pilot.freshness?.dataAsOf),
@@ -154,8 +305,6 @@ function toSettingsDTO(model: SettingsViewModel): AppService.SettingsDTO {
   };
 }
 
-// Migration note: this is the canonical DTO -> UI mapping path.
-// Keep backend field normalization here so feature-level code does not fork transform logic.
 export function toAnalysisSessionView(dto: AppService.AnalysisSessionDTO): AnalysisSessionView {
   const unresolvedNames = dto.unresolvedNames ?? [];
   const candidateNamesCount = dto.source.candidateNames.length;
