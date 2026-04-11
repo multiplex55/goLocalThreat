@@ -465,6 +465,7 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 			var lastKill time.Time
 			var lastLoss time.Time
 			invalidOccurredAt := 0
+			validOccurredAt := 0
 			soloKills := 0
 			totalAttackers := 0
 			shipCounts := map[int64]int{}
@@ -472,25 +473,31 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 				if km.OccurredAtInvalid {
 					invalidOccurredAt++
 				}
-				if km.OccurredAt.IsZero() {
-					continue
-				}
-				occurredAt := km.OccurredAt.UTC()
-				if latest.IsZero() || occurredAt.After(latest) {
-					latest = occurredAt
-				}
 				if km.VictimID == id {
-					if lastLoss.IsZero() || occurredAt.After(lastLoss) {
-						lastLoss = occurredAt
+					if !km.OccurredAt.IsZero() {
+						occurredAt := km.OccurredAt.UTC()
+						if lastLoss.IsZero() || occurredAt.After(lastLoss) {
+							lastLoss = occurredAt
+						}
 					}
 				} else {
-					if lastKill.IsZero() || occurredAt.After(lastKill) {
-						lastKill = occurredAt
+					if !km.OccurredAt.IsZero() {
+						occurredAt := km.OccurredAt.UTC()
+						if lastKill.IsZero() || occurredAt.After(lastKill) {
+							lastKill = occurredAt
+						}
 					}
 					if km.Attackers == 1 {
 						soloKills++
 					}
 					totalAttackers += max(1, km.Attackers)
+				}
+				if !km.OccurredAt.IsZero() {
+					validOccurredAt++
+					occurredAt := km.OccurredAt.UTC()
+					if latest.IsZero() || occurredAt.After(latest) {
+						latest = occurredAt
+					}
 				}
 				if km.ShipTypeID > 0 {
 					shipCounts[km.ShipTypeID]++
@@ -531,7 +538,7 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 				pilots[idx].Threat.MainShip = fmt.Sprintf("ShipType #%d", bestShipID)
 			}
 			pilots[idx].Threat.Notes = fmt.Sprintf("detail killmails: %d", len(kms))
-			if latest.IsZero() {
+			if validOccurredAt == 0 {
 				ident := pilots[idx].Identity
 				warnings = append(warnings, domain.ProviderWarning{
 					Provider:      "zkill",

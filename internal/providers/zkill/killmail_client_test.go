@@ -131,6 +131,26 @@ func TestParseKillmailsValidRFC3339SetsOccurredAt(t *testing.T) {
 	}
 }
 
+func TestParseKillmailsParsesFallbackKillmailTime(t *testing.T) {
+	body := []byte(`[{"killmail_id":12,"killmail_time":"2026-04-10T13:34:56Z"}]`)
+	items, invalidCount, err := parseKillmails(body)
+	if err != nil {
+		t.Fatalf("parseKillmails err: %v", err)
+	}
+	if invalidCount != 0 {
+		t.Fatalf("invalidCount = %d, want 0", invalidCount)
+	}
+	if len(items) != 1 {
+		t.Fatalf("len(items) = %d, want 1", len(items))
+	}
+	if items[0].OccurredAt.IsZero() {
+		t.Fatal("expected non-zero occurredAt for fallback killmail_time")
+	}
+	if items[0].OccurredAtInvalid {
+		t.Fatal("expected OccurredAtInvalid=false for fallback timestamp")
+	}
+}
+
 func TestParseKillmailsInvalidTimestampCountsAndLeavesZeroOccurredAt(t *testing.T) {
 	body := []byte(`[{"killmail_id":8,"zkb_time":"not-a-time"}]`)
 	items, invalidCount, err := parseKillmails(body)
@@ -180,7 +200,7 @@ func TestParseKillmailsMixedPayloadPreservesOrderAndCountsInvalidTimes(t *testin
 }
 
 func TestParseKillmailsEmptyTimestampCountedAsMissing(t *testing.T) {
-	body := []byte(`[{"killmail_id":9,"zkb_time":""}]`)
+	body := []byte(`[{"killmail_id":9,"zkb_time":"","killmail_time":"","time":""}]`)
 	items, invalidCount, err := parseKillmails(body)
 	if err != nil {
 		t.Fatalf("parseKillmails err: %v", err)
@@ -196,6 +216,32 @@ func TestParseKillmailsEmptyTimestampCountedAsMissing(t *testing.T) {
 	}
 	if !items[0].OccurredAtInvalid {
 		t.Fatal("expected OccurredAtInvalid=true for empty timestamp")
+	}
+}
+
+func TestParseKillmailsInvalidTimeKeepsNonTimeFields(t *testing.T) {
+	body := []byte(`[{
+		"killmail_id":44,
+		"zkb_time":"invalid",
+		"solar_system_id":30000142,
+		"victim":{"character_id":9001,"ship_type_id":587,"damage_taken":12345},
+		"attackers":[{"character_id":100},{"character_id":200}]
+	}]`)
+	items, invalidCount, err := parseKillmails(body)
+	if err != nil {
+		t.Fatalf("parseKillmails err: %v", err)
+	}
+	if invalidCount != 1 {
+		t.Fatalf("invalidCount = %d, want 1", invalidCount)
+	}
+	if len(items) != 1 {
+		t.Fatalf("len(items) = %d, want 1", len(items))
+	}
+	if items[0].VictimID != 9001 || items[0].Attackers != 2 || items[0].ShipTypeID != 587 || items[0].SystemID != 30000142 || items[0].DamageTaken != 12345 {
+		t.Fatalf("expected non-time fields to be preserved, got %#v", items[0])
+	}
+	if !items[0].OccurredAtInvalid {
+		t.Fatalf("expected OccurredAtInvalid=true")
 	}
 }
 
