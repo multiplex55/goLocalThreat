@@ -302,6 +302,7 @@ export function LocalScreen({
                         return (
                           <td key={h.column}>
                             {pinnedRowIds.has(tableRow.id) ? '📌 ' : ''}
+                            {renderedRow.warningIcon ? `${renderedRow.warningIcon} ` : ''}
                             {renderedRow.identity.name}
                           </td>
                         );
