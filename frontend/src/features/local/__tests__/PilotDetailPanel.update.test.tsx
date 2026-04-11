@@ -53,7 +53,7 @@ function buildState(): AnalyzeState {
           score: 52,
           band: 'medium',
           confidence: 0.55,
-          reasons: ['Stale Data'],
+          reasons: [],
           tags: ['Stale Data'],
           notes: 'Beta note',
           kills: null,
@@ -65,7 +65,7 @@ function buildState(): AnalyzeState {
           lastKill: null,
           lastLoss: null,
           freshness: { source: null, dataAsOf: null, isStale: null },
-          warnings: [{ code: 'W', message: 'Beta warning', normalizedLabel: 'Beta warning', severity: 'warn', provider: 'zkill', userVisible: true, displayTier: 'detail_panel' }],
+          warnings: [{ code: 'SUMMARY_ONLY', message: 'summary only data', severity: 'warn', provider: 'zkill', userVisible: true, category: 'data_quality', displayTier: 'detail_panel' }],
         },
       ],
     },
@@ -73,19 +73,18 @@ function buildState(): AnalyzeState {
 }
 
 describe('PilotDetailPanel selection updates', () => {
-  it('updates pane content when selected row changes', () => {
+  it('updates pane content and provenance badge when selected row changes', () => {
     render(<LocalScreen pastedText="" analyzeState={buildState()} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
 
     expect(screen.getByTestId('detail-title')).toHaveTextContent('Alpha');
     expect(screen.getByTestId('detail-pane')).toHaveTextContent('Alpha note');
+    expect(screen.getByTestId('detail-provenance-badge')).toHaveTextContent('Detail-enriched');
 
     fireEvent.click(screen.getByText('Beta'));
     expect(screen.getByTestId('detail-title')).toHaveTextContent('Beta');
     expect(screen.getByTestId('detail-pane')).toHaveTextContent('Beta note');
-    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Beta warning');
-    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Warnings and long-form explanation are intentionally moved here');
-    expect(screen.getByTestId('detail-tag-list')).toHaveTextContent('Stale Data');
-    expect(screen.getByTestId('detail-tag-rationale')).toHaveTextContent('Stale Data (+30)');
+    expect(screen.getByTestId('detail-pane')).toHaveTextContent('Data quality reduced');
+    expect(screen.getByTestId('detail-provenance-badge')).toHaveTextContent('Summary-only');
     expect(screen.getByTestId('detail-pane')).not.toHaveTextContent('Alpha note');
   });
 });
