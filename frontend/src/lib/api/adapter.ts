@@ -31,6 +31,12 @@ function pickPreferredNonZeroNumber(primary: number | null | undefined, secondar
   return null;
 }
 
+function pickPreferredPercent(primary: number | null | undefined, secondary: number | null | undefined): number | null {
+  const preferred = pickPreferredNonZeroNumber(primary, secondary);
+  if (preferred !== null && preferred !== 0) return preferred;
+  return null;
+}
+
 function pickPreferredNonEmptyText(primary: string | undefined, secondary: string | undefined): string | null {
   return nullableText(primary) ?? nullableText(secondary);
 }
@@ -109,8 +115,8 @@ function toPilotView(pilot: AppService.PilotThreatDTO, warnings: ParseWarningVie
     notes: nullableText(pilot.threat?.notes ?? pilot.notes),
     kills: pickPreferredNonZeroNumber(pilot.threat?.recentKills, pilot.kills),
     losses: pickPreferredNonZeroNumber(pilot.threat?.recentLosses, pilot.losses),
-    dangerPercent: pickPreferredNonZeroNumber(pilot.threat?.dangerPercent, pilot.dangerPercent),
-    soloPercent: pickPreferredNonZeroNumber(pilot.threat?.soloPercent, pilot.soloPercent),
+    dangerPercent: pickPreferredPercent(pilot.threat?.dangerPercent, pilot.dangerPercent),
+    soloPercent: pickPreferredPercent(pilot.threat?.soloPercent, pilot.soloPercent),
     avgGangSize: pickPreferredNonZeroNumber(pilot.threat?.avgGangSize, pilot.avgGangSize),
     mainShip: pickPreferredNonEmptyText(pilot.threat?.mainShip, pilot.mainShip),
     lastKill: normalizeTimestampOrNull(pilot.threat?.lastKill) ?? normalizeTimestampOrNull(pilot.lastKill),

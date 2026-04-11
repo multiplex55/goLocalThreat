@@ -5,6 +5,16 @@ export interface ThreatReasonEntry {
   score: number;
 }
 
+export type DataFieldState = 'known' | 'unknown' | 'partial' | 'fallback';
+
+export interface ThreatRowProvenance {
+  mainShip: DataFieldState;
+  dangerPercent: DataFieldState;
+  soloPercent: DataFieldState;
+  lastSeen: DataFieldState;
+  fallbackSource: string | null;
+}
+
 export interface ThreatRowView {
   id: string;
   pilotName: string;
@@ -34,6 +44,7 @@ export interface ThreatRowView {
   lastSeen: string | null;
   status: 'ready' | 'provisional' | 'loading';
   dataCompletenessMarkers: string[];
+  provenance?: ThreatRowProvenance;
   warnings?: Array<{
     code?: string;
     rawCode?: string;

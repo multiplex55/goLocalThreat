@@ -13,10 +13,34 @@ export function toThreatRowView(pilot: PilotThreatView, status: ThreatRowView['s
   }));
   const hasPartialTimestampWarning = pilot.warnings.some((warning) => warning.normalizedLabel === 'Partial timestamps');
   const hasRecentActivityIncomplete = pilot.warnings.some((warning) => warning.normalizedLabel === 'Recent activity incomplete');
+  const hasSummaryOnlyWarning = pilot.warnings.some((warning) => warning.normalizedLabel === 'Derived from summary only');
+  const derivedFromSummaryOnly = hasSummaryOnlyWarning || !pilot.reasons.length;
+  const fallbackSource = pilot.freshness.source && pilot.freshness.source !== 'zkill' ? pilot.freshness.source : null;
+
+  const mainShipState: NonNullable<ThreatRowView['provenance']>['mainShip'] = pilot.mainShip
+    ? (fallbackSource ? 'fallback' : 'known')
+    : (derivedFromSummaryOnly ? 'unknown' : 'partial');
+  const canDeriveDangerSolo = !derivedFromSummaryOnly;
+  const dangerPercent = canDeriveDangerSolo ? pilot.dangerPercent : null;
+  const soloPercent = canDeriveDangerSolo ? pilot.soloPercent : null;
+  const dangerPercentState: NonNullable<ThreatRowView['provenance']>['dangerPercent'] = dangerPercent !== null
+    ? (fallbackSource ? 'fallback' : 'known')
+    : (derivedFromSummaryOnly ? 'unknown' : 'partial');
+  const soloPercentState: NonNullable<ThreatRowView['provenance']>['soloPercent'] = soloPercent !== null
+    ? (fallbackSource ? 'fallback' : 'known')
+    : (derivedFromSummaryOnly ? 'unknown' : 'partial');
+
+  const activityCandidates = [pilot.lastKill, pilot.lastLoss].filter((value): value is string => Boolean(value));
+  const lastSeen = activityCandidates.length ? activityCandidates.sort().at(-1) ?? null : null;
+  const lastSeenState: NonNullable<ThreatRowView['provenance']>['lastSeen'] = lastSeen
+    ? (hasPartialTimestampWarning || hasRecentActivityIncomplete ? 'partial' : (fallbackSource ? 'fallback' : 'known'))
+    : (hasPartialTimestampWarning || hasRecentActivityIncomplete || derivedFromSummaryOnly ? 'partial' : 'unknown');
+
   const dataCompletenessMarkers = [
     ...(hasPartialTimestampWarning ? ['Partial timestamps'] : []),
     ...(hasRecentActivityIncomplete ? ['Recent activity incomplete'] : []),
-    ...(!pilot.reasons.length ? ['Derived from summary only'] : []),
+    ...(derivedFromSummaryOnly ? ['Derived from summary only'] : []),
+    ...(fallbackSource ? [`Fallback source: ${fallbackSource}`] : []),
   ];
 
   return {
@@ -27,7 +51,7 @@ export function toThreatRowView(pilot: PilotThreatView, status: ThreatRowView['s
     alliance: pilot.identity.allianceName ?? '',
     allianceTicker: pilot.identity.allianceTicker ?? undefined,
     orgMetadataPartial: Boolean(pilot.identity.metadata.corporationId && !pilot.identity.corporationName),
-    mainShip: pilot.mainShip,
+    mainShip: mainShipState === 'unknown' ? null : pilot.mainShip,
     mainRecentShip: pilot.mainShip,
     score: pilot.score,
     threatBand: toThreatBand(pilot.score, pilot.band),
@@ -35,10 +59,10 @@ export function toThreatRowView(pilot: PilotThreatView, status: ThreatRowView['s
     reasonBreakdown,
     kills: pilot.kills,
     losses: pilot.losses,
-    dangerPercent: pilot.dangerPercent,
-    soloPercent: pilot.soloPercent,
+    dangerPercent,
+    soloPercent,
     avgGangSize: pilot.avgGangSize,
-    soloGangTendency: pilot.soloPercent !== null && pilot.soloPercent >= 60
+    soloGangTendency: soloPercent !== null && soloPercent >= 60
       ? 'High Solo'
       : pilot.avgGangSize !== null && pilot.avgGangSize >= 4
         ? 'High Gang'
@@ -49,9 +73,16 @@ export function toThreatRowView(pilot: PilotThreatView, status: ThreatRowView['s
     freshness: pilot.freshness.dataAsOf,
     tags: pilot.tags,
     notes: pilot.notes ?? '',
-    lastSeen: pilot.freshness.dataAsOf,
+    lastSeen,
     status,
     dataCompletenessMarkers,
+    provenance: {
+      mainShip: mainShipState,
+      dangerPercent: dangerPercentState,
+      soloPercent: soloPercentState,
+      lastSeen: lastSeenState,
+      fallbackSource,
+    },
     warnings: pilot.warnings.map((warning) => ({
       code: warning.code,
       rawCode: warning.rawCode,
