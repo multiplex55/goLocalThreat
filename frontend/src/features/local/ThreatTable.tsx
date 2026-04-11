@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties, type RefObject } from 'react';
+import { useEffect, useMemo, type CSSProperties, type RefObject } from 'react';
 import {
   createColumnHelper,
   flexRender,
@@ -147,6 +147,7 @@ interface VirtualThreatTableProps {
   onSortChange: (column: ThreatTableColumn) => void;
   isPinned: (rowId: string) => boolean;
   scrollParentRef: RefObject<HTMLDivElement>;
+  onVisibleRowIdsChange?: (rowIds: string[]) => void;
 }
 
 export function VirtualThreatTable({
@@ -162,6 +163,7 @@ export function VirtualThreatTable({
   onSortChange,
   isPinned,
   scrollParentRef,
+  onVisibleRowIdsChange,
 }: VirtualThreatTableProps) {
   const sorting = useMemo<SortingState>(() => [{ id: sortBy, desc: sortDirection === 'desc' }], [sortBy, sortDirection]);
   const columnVisibility = useMemo<VisibilityState>(() => ({ ...visibleColumns }), [visibleColumns]);
@@ -186,6 +188,9 @@ export function VirtualThreatTable({
   });
 
   const bodyRows = table.getRowModel().rows;
+  useEffect(() => {
+    onVisibleRowIdsChange?.(bodyRows.map((row) => row.original.id));
+  }, [bodyRows, onVisibleRowIdsChange]);
 
   const virtualizer = useVirtualizer({
     count: bodyRows.length,
@@ -245,8 +250,20 @@ export function VirtualThreatTable({
                 >
                   {row.getVisibleCells().map((cell) => (
                     <td key={cell.id}>
-                      {cell.column.id === 'pilotName' && isPinned(row.original.id) ? '📌 ' : ''}
-                      {normalizeValue(cell.getValue())}
+                      {cell.column.id === 'pilotName' ? (
+                        <>
+                          {isPinned(row.original.id) ? '📌 ' : ''}
+                          {rendered.warningBadgeText ? (
+                            <span
+                              title={row.original.warnings?.filter((warning) => warning.displayTier === 'row_hint').map((warning) => warning.normalizedLabel ?? warning.message).slice(0, 2).join(', ') || 'Row warning'}
+                              aria-label="row warnings"
+                            >
+                              {rendered.warningBadgeText}{' '}
+                            </span>
+                          ) : null}
+                          {normalizeValue(cell.getValue())}
+                        </>
+                      ) : normalizeValue(cell.getValue())}
                     </td>
                   ))}
                 </tr>
