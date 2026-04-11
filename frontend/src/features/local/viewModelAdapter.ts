@@ -73,6 +73,9 @@ export function toLocalScreenViewModel(dto: AppService.AnalysisSessionDTO): Loca
       cache: 'warming',
       rate: 'ok',
       updatedAt: dto.updatedAt,
+      diagnostics: {
+        partialKillmailTimestamps: session.diagnostics.warningCodeCounts.DETAIL_TIME_INVALID ?? 0,
+      },
     },
     provisional: false,
     loading: false,

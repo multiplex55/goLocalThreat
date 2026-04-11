@@ -69,6 +69,7 @@ export function LocalScreen({
   const diagnostics = analyzeState.data?.diagnostics;
   const unresolvedNames = diagnostics?.unresolvedNames ?? [];
   const globalWarnings = diagnostics?.globalWarnings ?? [];
+  const partialKillmailTimestampCount = diagnostics?.warningCodeCounts?.DETAIL_TIME_INVALID ?? 0;
 
   const rightCollapsed = useMediaQuery('(max-width: 1439px)');
   const leftCollapsed = useMediaQuery('(max-width: 1169px)');
@@ -315,6 +316,9 @@ export function LocalScreen({
           <summary>
             Diagnostics · global warnings: {globalWarnings.length} · errors: {diagnostics?.severityCounts.error ?? 0} · warns: {diagnostics?.severityCounts.warn ?? 0}
           </summary>
+          <p data-testid="diagnostic-partial-timestamps-count">
+            Partial killmail timestamps: {partialKillmailTimestampCount}
+          </p>
           <p>
             Providers:&nbsp;
             {Object.entries(diagnostics?.providerCounts ?? {})
