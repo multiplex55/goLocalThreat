@@ -1,0 +1,80 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`threat table class structure snapshot > keeps row style hooks stable 1`] = `
+{
+  "cells": [
+    "Snap",
+    "—",
+    "Alliance",
+    "Caracal",
+    "—",
+  ],
+  "compact": true,
+  "id": "snap-1",
+  "identity": {
+    "avatarLabel": "S",
+    "dimmed": false,
+    "metadata": "— · Alliance",
+    "metadataClassName": "threat-cell-meta-muted",
+    "name": "Snap",
+  },
+  "numericCells": {
+    "avgGangSize": "4",
+    "dangerPercent": "62%",
+    "kills": "4",
+    "losses": "2",
+    "soloPercent": "15%",
+  },
+  "rowClassName": "threat-table-row is-hoverable is-selected is-compact",
+  "score": {
+    "badgeText": "HIGH 77",
+    "level": "high",
+    "text": "77",
+  },
+  "scoreCell": {
+    "align": "right",
+    "text": "HIGH 77",
+  },
+  "selected": true,
+  "tagCell": {
+    "overflowCount": 1,
+    "overflowTooltip": "Logi",
+    "visible": [
+      {
+        "label": "FC",
+        "tone": "neutral",
+      },
+      {
+        "label": "Scout",
+        "tone": "neutral",
+      },
+      {
+        "label": "Cyno",
+        "tone": "neutral",
+      },
+    ],
+  },
+  "tags": [
+    {
+      "label": "FC",
+      "tone": "neutral",
+    },
+    {
+      "label": "Scout",
+      "tone": "neutral",
+    },
+    {
+      "label": "Cyno",
+      "tone": "neutral",
+    },
+    {
+      "label": "Logi",
+      "tone": "neutral",
+    },
+  ],
+  "threatBandClassName": "threat-band--high",
+  "virtualizationKey": "row-snap-1",
+  "warningIcon": null,
+  "warningIndicator": "none",
+}
+`;

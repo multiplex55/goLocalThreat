@@ -10,7 +10,7 @@ function formatCorpAlliance(name: string, ticker?: string): string {
 }
 
 function formatActivity(lastKill: string | null, lastLoss: string | null): string {
-  return `Last kill: ${lastKill ?? 'n/a'} · Last loss: ${lastLoss ?? 'n/a'}`;
+  return `Last kill: ${lastKill ?? '—'} · Last loss: ${lastLoss ?? '—'}`;
 }
 
 function getExplanationQuality(row: ThreatRowView): 'High' | 'Medium' | 'Low' {
@@ -31,6 +31,7 @@ export function PilotDetailPanel({ row }: PilotDetailPanelProps) {
 
   const warningRows = row.warnings ?? [];
   const explanationQuality = getExplanationQuality(row);
+  const hasPartialTimestampMarker = row.dataCompletenessMarkers.includes('Partial timestamps');
 
   return (
     <section className="pilot-detail-panel" data-testid="pilot-detail-panel" aria-live="polite">
@@ -73,6 +74,11 @@ export function PilotDetailPanel({ row }: PilotDetailPanelProps) {
           <h4>Activity timing</h4>
           <p>{formatActivity(row.lastKill, row.lastLoss)}</p>
           <p><strong>Freshness:</strong> {row.freshness ?? '—'}</p>
+          {hasPartialTimestampMarker ? (
+            <p className="threat-cell-meta-muted">
+              Killmail event timestamps are partially unavailable; timing-based indicators may be understated.
+            </p>
+          ) : null}
         </section>
 
         <section>
@@ -81,23 +87,22 @@ export function PilotDetailPanel({ row }: PilotDetailPanelProps) {
           <ul data-testid="detail-reasons">
             {row.reasonBreakdown.length ? row.reasonBreakdown.map((entry) => (
               <li key={`${entry.label}-${entry.score}`}>{entry.label} (+{entry.score})</li>
-            )) : <li>No scored reasons available</li>}
+            )) : <li>No reasons yet.</li>}
           </ul>
         </section>
 
         <section>
           <h4>Notes and pilot-specific warnings</h4>
-          <p><strong>Notes:</strong> {row.notes || 'None'}</p>
+          <p><strong>Notes:</strong> {row.notes || '—'}</p>
           <ul data-testid="detail-warnings">
             {warningRows.length ? warningRows.map((warning, index) => (
               <li key={`${warning.message}-${index}`} style={{ opacity: warning.severity === 'info' || warning.userVisible === false ? 0.7 : 1 }}>
                 {warning.message}
               </li>
-            )) : <li>No pilot-specific warnings.</li>}
+            )) : <li>None.</li>}
           </ul>
         </section>
       </div>
     </section>
   );
 }
-

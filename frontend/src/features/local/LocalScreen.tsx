@@ -275,8 +275,17 @@ export function LocalScreen({
                 {table.rows.map((tableRow) => (
                   <tr
                     key={tableRow.id}
+                    className={tableRow.rendered.rowClassName}
+                    data-band={tableRow.row.threatBand}
                     data-selected={tableRow.selected || undefined}
+                    tabIndex={0}
                     onClick={() => setSelectedRowId(tableRow.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedRowId(tableRow.id);
+                      }
+                    }}
                     onDoubleClick={() => setPinnedRowIds((current) => {
                       const next = new Set(current);
                       if (next.has(tableRow.id)) {
@@ -288,9 +297,46 @@ export function LocalScreen({
                     })}
                   >
                     {table.headers.filter((h) => h.visible).map((h) => {
+                      const renderedRow = tableRow.rendered;
+                      if (h.column === 'pilotName') {
+                        return (
+                          <td key={h.column}>
+                            {pinnedRowIds.has(tableRow.id) ? '📌 ' : ''}
+                            {renderedRow.identity.name}
+                          </td>
+                        );
+                      }
+                      if (h.column === 'corp') {
+                        return <td key={h.column} className={renderedRow.identity.metadataClassName}>{renderedRow.cells[1]}</td>;
+                      }
+                      if (h.column === 'alliance') {
+                        return <td key={h.column} className={renderedRow.identity.metadataClassName}>{renderedRow.cells[2]}</td>;
+                      }
+                      if (h.column === 'score') {
+                        return <td key={h.column}><span className="threat-row-score-badge">{renderedRow.score.badgeText}</span></td>;
+                      }
+                      if (h.column === 'threatBand') {
+                        return <td key={h.column} className={renderedRow.threatBandClassName}>{tableRow.row.threatBand.toUpperCase()}</td>;
+                      }
+                      if (h.column === 'kills') return <td key={h.column}>{renderedRow.numericCells.kills}</td>;
+                      if (h.column === 'losses') return <td key={h.column}>{renderedRow.numericCells.losses}</td>;
+                      if (h.column === 'dangerPercent') return <td key={h.column}>{renderedRow.numericCells.dangerPercent}</td>;
+                      if (h.column === 'soloPercent') return <td key={h.column}>{renderedRow.numericCells.soloPercent}</td>;
+                      if (h.column === 'avgGangSize') return <td key={h.column}>{renderedRow.numericCells.avgGangSize}</td>;
+                      if (h.column === 'tags') {
+                        return (
+                          <td key={h.column}>
+                            <div className="threat-table-tags">
+                              {renderedRow.tagCell.visible.map((tag) => <span key={tag.label} className="threat-table-chip">{tag.label}</span>)}
+                              {renderedRow.tagCell.overflowCount ? <span className="threat-table-chip">+{renderedRow.tagCell.overflowCount}</span> : null}
+                            </div>
+                          </td>
+                        );
+                      }
+
                       const value = tableRow.row[h.column];
                       const rendered = Array.isArray(value) ? value.join(', ') : (value ?? '—');
-                      return <td key={h.column}>{h.column === 'pilotName' && pinnedRowIds.has(tableRow.id) ? '📌 ' : ''}{String(rendered)}</td>;
+                      return <td key={h.column}>{String(rendered) || '—'}</td>;
                     })}
                   </tr>
                 ))}
