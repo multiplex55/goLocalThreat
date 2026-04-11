@@ -40,43 +40,33 @@ exports[`threat table class structure snapshot > keeps sticky and compact class 
     },
     "selected": true,
     "tagCell": {
-      "overflowCount": 1,
-      "overflowTooltip": "Logi",
+      "overflowCount": 0,
+      "overflowTooltip": null,
+      "tooltip": "Tags: FC, Scout, Cyno, Logi • Rationale: No rationale available",
       "visible": [
         {
           "label": "FC",
-          "tone": "neutral",
-        },
-        {
-          "label": "Scout",
-          "tone": "neutral",
+          "tone": "danger",
         },
         {
           "label": "Cyno",
-          "tone": "neutral",
+          "tone": "danger",
         },
       ],
     },
     "tags": [
       {
         "label": "FC",
-        "tone": "neutral",
-      },
-      {
-        "label": "Scout",
-        "tone": "neutral",
+        "tone": "danger",
       },
       {
         "label": "Cyno",
-        "tone": "neutral",
-      },
-      {
-        "label": "Logi",
-        "tone": "neutral",
+        "tone": "danger",
       },
     ],
     "threatBandClassName": "threat-band--high",
     "virtualizationKey": "row-snap-1",
+    "warningBadgeText": null,
     "warningIcon": null,
     "warningIndicator": "none",
   },

@@ -33,6 +33,9 @@ export function PilotDetailPanel({ row }: PilotDetailPanelProps) {
   }
 
   const groupedWarnings = dedupeAndGroupDetailWarnings(row.warnings ?? []);
+  const rationale = row.reasonBreakdown.length
+    ? row.reasonBreakdown.map((entry) => `${entry.label} (+${entry.score})`).join(', ')
+    : 'No rationale available';
 
   return (
     <section className="pilot-detail-panel" data-testid="pilot-detail-panel" aria-live="polite">
@@ -60,6 +63,14 @@ export function PilotDetailPanel({ row }: PilotDetailPanelProps) {
             {row.reasonBreakdown.length ? row.reasonBreakdown.map((entry) => <li key={`${entry.label}-${entry.score}`}>{entry.label} (+{entry.score})</li>) : <li>No reasons yet.</li>}
           </ul>
           <p className="pilot-detail-explanation-quality">Warnings and long-form explanation are intentionally moved here to keep table scanning compact.</p>
+        </section>
+
+        <section>
+          <h4>Tags & rationale</h4>
+          <p data-testid="detail-tag-rationale">{rationale}</p>
+          <ul data-testid="detail-tag-list">
+            {row.tags.length ? row.tags.map((tag) => <li key={tag}>{tag}</li>) : <li>None.</li>}
+          </ul>
         </section>
 
         <section>

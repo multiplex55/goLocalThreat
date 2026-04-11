@@ -1,9 +1,9 @@
 import { buildScoreBadge } from './ScoreBadge';
-import { buildTagPill } from './TagPill';
+import { buildTagPill, normalizeTagsForGrid } from './TagPill';
 import type { ThreatLevel, ThreatRowView } from './types';
 
 const PLACEHOLDER = '—';
-const MAX_VISIBLE_TAGS = 3;
+const MAX_VISIBLE_TAGS = 2;
 const MAX_TEXT_CELL = 28;
 
 export interface ThreatTableRowView {
@@ -38,6 +38,7 @@ export interface ThreatTableRowView {
     visible: ReturnType<typeof buildTagPill>[];
     overflowCount: number;
     overflowTooltip: string | null;
+    tooltip: string | null;
   };
   cells: string[];
   tags: ReturnType<typeof buildTagPill>[];
@@ -118,9 +119,14 @@ export function buildThreatTableRow(row: ThreatRowView, selected: boolean, compa
   const identityMetadata = `${corp} ${corpTicker}`.trim() + ' · ' + `${alliance} ${allianceTicker}`.trim();
   const metadataClassName = corp === PLACEHOLDER || alliance === PLACEHOLDER ? 'threat-cell-meta-muted' : '';
 
-  const tags = row.tags.map((tag) => buildTagPill(tag));
+  const normalizedTags = normalizeTagsForGrid(row.tags);
+  const tags = normalizedTags.map((tag) => buildTagPill(tag));
   const visible = tags.slice(0, MAX_VISIBLE_TAGS);
   const overflow = tags.slice(MAX_VISIBLE_TAGS);
+  const rationale = row.reasonBreakdown.length
+    ? row.reasonBreakdown.map((entry) => `${entry.label} (+${entry.score})`).join(', ')
+    : 'No rationale available';
+  const fullTooltip = [`Tags: ${row.tags.join(', ') || PLACEHOLDER}`, `Rationale: ${rationale}`].join(' • ');
 
   const score = buildScoreBadge(row.score);
   const scoreBand = formatThreatBand(row.threatBand);
@@ -162,6 +168,7 @@ export function buildThreatTableRow(row: ThreatRowView, selected: boolean, compa
       visible,
       overflowCount: overflow.length,
       overflowTooltip: overflow.length ? overflow.map((tag) => tag.label).join(', ') : null,
+      tooltip: fullTooltip,
     },
     cells: [truncateCellText(name), truncateCellText(corp), truncateCellText(alliance), truncateCellText(dimmedText(row.mainShip)), truncateCellText(dimmedTimestamp(row.lastSeen))],
     tags,

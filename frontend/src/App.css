@@ -140,6 +140,32 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.threat-table-cell--tags {
+  white-space: nowrap;
+}
+.threat-tag-cell-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  max-width: 100%;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+  line-height: 1;
+}
+.threat-tag-pill,
+.threat-tag-overflow {
+  display: inline-block;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 999px;
+  padding: 0.05rem 0.38rem;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  line-height: 1.15;
+}
+.threat-tag-pill.tone-danger { border-color: #744; }
+.threat-tag-pill.tone-warning { border-color: #775d2a; }
+.threat-tag-pill.tone-info { border-color: #2c6570; }
 
 .local-center-panel input,
 .local-center-panel button,
