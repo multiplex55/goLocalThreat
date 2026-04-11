@@ -58,6 +58,10 @@ export interface PilotThreatView {
     dataAsOf: string | null;
     isStale: boolean | null;
   };
+  detailRequested?: boolean;
+  detailFetched?: boolean;
+  detailPolicyReason?: string | null;
+  detailPolicySummary?: string | null;
   warnings: ParseWarningView[];
 }
 
@@ -82,6 +86,11 @@ export interface AnalysisSessionView {
       global: Array<{ label: string; count: number }>;
       rowHints: Record<string, { count: number; hasImpact: boolean }>;
       byPilot: Record<string, Array<{ label: string; count: number; impactsRecency: boolean; impactsTimestamps: boolean }>>;
+    };
+    detailCoverage?: {
+      detailRequested: number;
+      detailFetched: number;
+      policySummary: string;
     };
   };
   parseSummary: ParseSummaryView;

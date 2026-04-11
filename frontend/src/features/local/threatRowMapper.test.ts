@@ -46,6 +46,7 @@ describe('threatRowMapper', () => {
       fallbackSource: null,
     });
     expect(row.lastSeen).toBe('2026-04-10T12:00:00Z');
+    expect(row.dataCompletenessMarkers).toContain('Summary-only');
   });
 
   it('maps unknown summary-only values to null placeholders', () => {
@@ -89,5 +90,11 @@ describe('threatRowMapper', () => {
     expect(row.provenance?.soloPercent).toBe('fallback');
     expect(row.provenance?.fallbackSource).toBe('composite');
     expect(row.dataCompletenessMarkers).toContain('Fallback source: composite');
+  });
+
+  it('marks detail-enriched when backend reports detail fetched', () => {
+    const row = toThreatRowView(makePilot({ detailRequested: true, detailFetched: true }), 'ready');
+    expect(row.dataCompletenessMarkers).toContain('Detail-enriched');
+    expect(row.detailFetched).toBe(true);
   });
 });

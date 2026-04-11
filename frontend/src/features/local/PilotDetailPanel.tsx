@@ -69,6 +69,7 @@ function groupWarnings(warnings: NonNullable<ThreatRowView['warnings']>): Warnin
 }
 
 function deriveProvenanceState(row: ThreatRowView): 'summary-only' | 'detail-enriched' {
+  if (row.detailFetched) return 'detail-enriched';
   const hasSummaryOnlyWarning = (row.warnings ?? []).some((warning) => normalizeWarningLabel(warning) === 'Derived from summary only' || normalizeWarningLabel(warning) === 'Data quality reduced');
   const isSummaryOnly = hasSummaryOnlyWarning || row.reasonBreakdown.length === 0 || row.provenance?.dangerPercent === 'unknown';
   return isSummaryOnly ? 'summary-only' : 'detail-enriched';

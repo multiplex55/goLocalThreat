@@ -25,6 +25,7 @@ function buildState(): AnalyzeState {
         warningCodeCounts: {},
         severityCounts: { info: 1, warn: 3, error: 0 },
         providerCounts: {},
+        detailCoverage: { detailRequested: 1, detailFetched: 1, policySummary: 'test policy' },
       },
       parseSummary: { candidateCount: 1, invalidLineCount: 0, duplicateRemovalCount: 0, warningCount: 0, warnings: [] },
       pilots: [
@@ -46,6 +47,8 @@ function buildState(): AnalyzeState {
           lastKill: '2026-01-01T00:00:00Z',
           lastLoss: '2025-12-01T00:00:00Z',
           freshness: { source: 'zkill', dataAsOf: '2026-01-01T00:00:00Z', isStale: false },
+          detailRequested: true,
+          detailFetched: true,
           warnings: [
             { code: 'DETAIL_TIME_INVALID', rawCode: 'DETAIL_TIME_INVALID', message: 'provider says detail invalid', severity: 'warn', provider: 'zkill', userVisible: true, category: 'data_quality', displayTier: 'detail_panel' },
             { code: 'DETAIL_TIME_INVALID', rawCode: 'DETAIL_TIME_INVALID', message: 'duplicate', severity: 'warn', provider: 'zkill', userVisible: true, category: 'data_quality', displayTier: 'detail_panel' },

@@ -24,6 +24,13 @@ type AnalysisSessionDTO struct {
 	UnresolvedNames        []string                        `json:"unresolvedNames,omitempty"`
 	ProviderWarningSummary []domain.ProviderWarningSummary `json:"providerWarningSummary,omitempty"`
 	WarningDisplay         WarningDisplayDTO               `json:"warningDisplay"`
+	DetailCoverage         DetailCoverageDTO               `json:"detailCoverage"`
+}
+
+type DetailCoverageDTO struct {
+	DetailRequested int    `json:"detailRequested"`
+	DetailFetched   int    `json:"detailFetched"`
+	PolicySummary   string `json:"policySummary"`
 }
 
 type WarningDisplayDTO struct {
@@ -92,6 +99,10 @@ type PilotThreatRecordDTO struct {
 	Provenance  string                   `json:"provenance"`
 	LastUpdated string                   `json:"lastUpdated"`
 	Freshness   FetchFreshnessDTO        `json:"freshness"`
+	DetailRequested bool                 `json:"detailRequested"`
+	DetailFetched   bool                 `json:"detailFetched"`
+	DetailPolicyReason string            `json:"detailPolicyReason,omitempty"`
+	DetailPolicySummary string           `json:"detailPolicySummary,omitempty"`
 }
 
 type FetchFreshnessDTO struct {
@@ -129,6 +140,11 @@ func toAnalysisSessionDTO(in domain.AnalysisSession) AnalysisSessionDTO {
 		UnresolvedNames:        in.UnresolvedNames,
 		ProviderWarningSummary: in.ProviderWarningSummary,
 		WarningDisplay:         buildWarningDisplay(in.Warnings),
+		DetailCoverage: DetailCoverageDTO{
+			DetailRequested: in.DetailCoverage.RequestedCount,
+			DetailFetched:   in.DetailCoverage.FetchedCount,
+			PolicySummary:   in.DetailCoverage.PolicySummary,
+		},
 	}
 }
 
@@ -279,6 +295,10 @@ func toPilotDTO(in domain.PilotThreatRecord, warnings []domain.ProviderWarning) 
 		Provenance:  in.Freshness.Source,
 		LastUpdated: toRFC3339(in.LastUpdated),
 		Freshness:   toFreshnessDTO(in.Freshness),
+		DetailRequested: in.DetailRequested,
+		DetailFetched: in.DetailFetched,
+		DetailPolicyReason: in.DetailPolicyReason,
+		DetailPolicySummary: in.DetailPolicySummary,
 	}
 }
 

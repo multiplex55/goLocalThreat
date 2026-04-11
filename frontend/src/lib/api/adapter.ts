@@ -211,6 +211,12 @@ function toWarningView(warning: AppService.ParseWarningDTO): ParseWarningView {
 }
 
 function toPilotView(pilot: AppService.PilotThreatDTO, warnings: ParseWarningView[]): PilotThreatView {
+  const pilotWithDetail = pilot as AppService.PilotThreatDTO & {
+    detailRequested?: boolean;
+    detailFetched?: boolean;
+    detailPolicyReason?: string;
+    detailPolicySummary?: string;
+  };
   const resolvedThreatScore = resolveMetric(pilot, {
     source: { detail: (entry) => entry.threat?.threatScore, summary: (entry) => entry.threatScore },
     transform: passthrough<number>,
@@ -277,6 +283,10 @@ function toPilotView(pilot: AppService.PilotThreatDTO, warnings: ParseWarningVie
       dataAsOf: normalizeTimestampOrNull(pilot.freshness?.dataAsOf),
       isStale: pilot.freshness?.isStale ?? null,
     },
+    detailRequested: pilotWithDetail.detailRequested ?? false,
+    detailFetched: pilotWithDetail.detailFetched ?? false,
+    detailPolicyReason: nullableText(pilotWithDetail.detailPolicyReason),
+    detailPolicySummary: nullableText(pilotWithDetail.detailPolicySummary),
     warnings,
   };
 }
@@ -306,6 +316,13 @@ function toSettingsDTO(model: SettingsViewModel): AppService.SettingsDTO {
 }
 
 export function toAnalysisSessionView(dto: AppService.AnalysisSessionDTO): AnalysisSessionView {
+  const dtoWithDetail = dto as AppService.AnalysisSessionDTO & {
+    detailCoverage?: {
+      detailRequested?: number;
+      detailFetched?: number;
+      policySummary?: string;
+    };
+  };
   const unresolvedNames = dto.unresolvedNames ?? [];
   const candidateNamesCount = dto.source.candidateNames.length;
   const resolvedCount = dto.pilots.length;
@@ -406,6 +423,11 @@ export function toAnalysisSessionView(dto: AppService.AnalysisSessionDTO): Analy
         global: globalDisplay,
         rowHints: Object.fromEntries(Array.from(rowHintCounts.entries()).map(([characterId, hint]) => [String(characterId), hint])),
         byPilot: byPilotDisplay,
+      },
+      detailCoverage: {
+        detailRequested: dtoWithDetail.detailCoverage?.detailRequested ?? 0,
+        detailFetched: dtoWithDetail.detailCoverage?.detailFetched ?? 0,
+        policySummary: dtoWithDetail.detailCoverage?.policySummary ?? '',
       },
     },
     parseSummary: {

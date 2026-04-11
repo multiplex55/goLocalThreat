@@ -11,16 +11,37 @@ import (
 	"golocalthreat/internal/scoring"
 )
 
-func SelectDetailFetchTargets(pilots []domain.PilotThreatRecord, topN int, selectedPilotID int64, explicitRefresh bool) []int64 {
+const (
+	DefaultDetailTargetTopN = 3
+)
+
+const detailSelectionPolicySummary = "Detail targets include top-N threat rows, explicit selection, and zero-activity bootstrap rows; explicit refresh requests all rows."
+
+type DetailSelectionPlan struct {
+	TargetIDs      []int64
+	ReasonsByID    map[int64]string
+	PolicySummary  string
+	RequestedCount int
+}
+
+func SelectDetailFetchTargets(pilots []domain.PilotThreatRecord, topN int, selectedPilotID int64, explicitRefresh bool) DetailSelectionPlan {
 	if len(pilots) == 0 {
-		return nil
+		return DetailSelectionPlan{ReasonsByID: map[int64]string{}, PolicySummary: detailSelectionPolicySummary}
 	}
 	selected := map[int64]struct{}{}
+	reasons := map[int64]string{}
+	addTarget := func(characterID int64, reason string) {
+		if _, exists := selected[characterID]; !exists {
+			selected[characterID] = struct{}{}
+			reasons[characterID] = reason
+		}
+	}
 	if explicitRefresh {
 		for _, p := range pilots {
-			selected[p.Identity.CharacterID] = struct{}{}
+			addTarget(p.Identity.CharacterID, "explicit_refresh")
 		}
-		return orderedKeys(selected)
+		targets := orderedKeys(selected)
+		return DetailSelectionPlan{TargetIDs: targets, ReasonsByID: reasons, PolicySummary: detailSelectionPolicySummary, RequestedCount: len(targets)}
 	}
 
 	sorted := append([]domain.PilotThreatRecord(nil), pilots...)
@@ -28,23 +49,26 @@ func SelectDetailFetchTargets(pilots []domain.PilotThreatRecord, topN int, selec
 		return sorted[i].Threat.Total > sorted[j].Threat.Total
 	})
 	if topN <= 0 {
-		topN = 3
+		// Default budget keeps detail fetches bounded while still enriching highest-risk pilots.
+		topN = DefaultDetailTargetTopN
 	}
 	if topN > len(sorted) {
 		topN = len(sorted)
 	}
 	for i := 0; i < topN; i++ {
-		selected[sorted[i].Identity.CharacterID] = struct{}{}
+		addTarget(sorted[i].Identity.CharacterID, "top_threat_budget")
 	}
 	if selectedPilotID > 0 {
-		selected[selectedPilotID] = struct{}{}
+		addTarget(selectedPilotID, "selected_pilot")
 	}
 	for _, p := range pilots {
 		if p.Threat.RecentKills+p.Threat.RecentLosses == 0 {
-			selected[p.Identity.CharacterID] = struct{}{}
+			// Zero-activity rows are explicitly bootstrapped so stats-only rows can be enriched if detail exists.
+			addTarget(p.Identity.CharacterID, "zero_activity_bootstrap")
 		}
 	}
-	return orderedKeys(selected)
+	targets := orderedKeys(selected)
+	return DetailSelectionPlan{TargetIDs: targets, ReasonsByID: reasons, PolicySummary: detailSelectionPolicySummary, RequestedCount: len(targets)}
 }
 
 func orderedKeys(in map[int64]struct{}) []int64 {

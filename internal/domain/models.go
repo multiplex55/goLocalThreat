@@ -59,10 +59,14 @@ func (c CharacterIdentity) Validate() error {
 }
 
 type PilotThreatRecord struct {
-	Identity    CharacterIdentity `json:"identity"`
-	Threat      ThreatBreakdown   `json:"threat"`
-	LastUpdated time.Time         `json:"lastUpdated"`
-	Freshness   FetchFreshness    `json:"freshness"`
+	Identity            CharacterIdentity `json:"identity"`
+	Threat              ThreatBreakdown   `json:"threat"`
+	LastUpdated         time.Time         `json:"lastUpdated"`
+	Freshness           FetchFreshness    `json:"freshness"`
+	DetailRequested     bool              `json:"detailRequested,omitempty"`
+	DetailFetched       bool              `json:"detailFetched,omitempty"`
+	DetailPolicyReason  string            `json:"detailPolicyReason,omitempty"`
+	DetailPolicySummary string            `json:"detailPolicySummary,omitempty"`
 }
 
 func (p PilotThreatRecord) Validate() error {
@@ -134,6 +138,13 @@ type AnalysisSession struct {
 	WarningCount           int                      `json:"warningCount,omitempty"`
 	UnresolvedNames        []string                 `json:"unresolvedNames,omitempty"`
 	ProviderWarningSummary []ProviderWarningSummary `json:"providerWarningSummary,omitempty"`
+	DetailCoverage         DetailCoverage           `json:"detailCoverage"`
+}
+
+type DetailCoverage struct {
+	RequestedCount int    `json:"requestedCount"`
+	FetchedCount   int    `json:"fetchedCount"`
+	PolicySummary  string `json:"policySummary"`
 }
 
 func (a AnalysisSession) Validate() error {

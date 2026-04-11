@@ -37,6 +37,7 @@ export function toThreatRowView(pilot: PilotThreatView, status: ThreatRowView['s
     : (hasPartialTimestampWarning || hasRecentActivityIncomplete || derivedFromSummaryOnly ? 'partial' : 'unknown');
 
   const dataCompletenessMarkers = [
+    ...(pilot.detailFetched ? ['Detail-enriched'] : ['Summary-only']),
     ...(hasPartialTimestampWarning ? ['Partial timestamps'] : []),
     ...(hasRecentActivityIncomplete ? ['Recent activity incomplete'] : []),
     ...(derivedFromSummaryOnly ? ['Derived from summary only'] : []),
@@ -76,6 +77,10 @@ export function toThreatRowView(pilot: PilotThreatView, status: ThreatRowView['s
     lastSeen,
     status,
     dataCompletenessMarkers,
+    detailRequested: pilot.detailRequested ?? false,
+    detailFetched: pilot.detailFetched ?? false,
+    detailPolicyReason: pilot.detailPolicyReason ?? null,
+    detailPolicySummary: pilot.detailPolicySummary ?? null,
     provenance: {
       mainShip: mainShipState,
       dangerPercent: dangerPercentState,

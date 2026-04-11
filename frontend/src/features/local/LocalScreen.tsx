@@ -174,11 +174,11 @@ export function LocalScreen({
   const resolvedCount = diagnostics?.resolvedCount ?? 0;
   const unresolvedCount = unresolvedNames.length;
   const parseWarnings = analyzeState.data?.parseSummary.warnings ?? [];
-  const detailTotalCount = rows.length;
-  const detailEnrichedCount = rows.filter((row) => row.lastSeen || row.mainShip || row.kills !== null || row.losses !== null).length;
+  const detailRequestedCount = diagnostics?.detailCoverage?.detailRequested ?? rows.filter((row) => row.detailRequested).length;
+  const detailFetchedCount = diagnostics?.detailCoverage?.detailFetched ?? rows.filter((row) => row.detailFetched).length;
 
   const rosterSummary = formatRosterSummaryChip(parsedCount, resolvedCount);
-  const detailStatus = formatDetailStatusChip(detailEnrichedCount, detailTotalCount);
+  const detailStatus = formatDetailStatusChip(detailFetchedCount, detailRequestedCount);
 
   const copyName = useCallback(async (pilotName: string | null) => {
     if (!pilotName) {

@@ -42,7 +42,7 @@ func TestFrontendContractAnalyzePastedTextShape(t *testing.T) {
 		t.Fatalf("unmarshal session payload: %v", err)
 	}
 
-	mustHaveKeys(t, payload, "sessionId", "createdAt", "updatedAt", "source", "pilots", "warnings", "freshness")
+	mustHaveKeys(t, payload, "sessionId", "createdAt", "updatedAt", "source", "pilots", "warnings", "freshness", "detailCoverage")
 	mustBeString(t, payload, "createdAt")
 	mustBeString(t, payload, "updatedAt")
 
@@ -84,7 +84,7 @@ func TestFrontendContractAnalyzePastedTextShape(t *testing.T) {
 	if !ok {
 		t.Fatalf("pilot has unexpected type %T", pilots[0])
 	}
-	mustHaveKeys(t, firstPilot, "identity", "threat", "lastUpdated", "freshness")
+	mustHaveKeys(t, firstPilot, "identity", "threat", "lastUpdated", "freshness", "detailRequested", "detailFetched", "detailPolicyReason", "detailPolicySummary")
 	identity, ok := firstPilot["identity"].(map[string]any)
 	if !ok {
 		t.Fatalf("identity has unexpected type %T", firstPilot["identity"])
@@ -98,6 +98,12 @@ func TestFrontendContractAnalyzePastedTextShape(t *testing.T) {
 	mustHaveKeys(t, pilotFreshness, "source", "dataAsOf", "isStale")
 	mustBeString(t, pilotFreshness, "source")
 	mustBeString(t, pilotFreshness, "dataAsOf")
+
+	detailCoverage, ok := payload["detailCoverage"].(map[string]any)
+	if !ok {
+		t.Fatalf("detailCoverage has unexpected type %T", payload["detailCoverage"])
+	}
+	mustHaveKeys(t, detailCoverage, "detailRequested", "detailFetched", "policySummary")
 }
 
 func TestFrontendContractSummaryFieldsSurvivePartialTimestampDetails(t *testing.T) {
