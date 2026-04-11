@@ -4,13 +4,19 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestParseSummaryRowAndMapThreat(t *testing.T) {
-	row, err := parseSummaryRow([]byte(`{"character_id":42,"kills":7,"losses":2,"danger":1.5,"last_seen":"2026-04-10T12:00:00Z"}`))
+	row, warning, err := parseSummaryRow([]byte(`{"character_id":42,"kills":7,"losses":2,"danger":1.5,"last_seen":"2026-04-10T12:00:00Z"}`))
 	if err != nil {
 		t.Fatalf("parseSummaryRow err: %v", err)
+	}
+	if warning != nil {
+		t.Fatalf("expected no warning, got %+v", warning)
 	}
 	if row.CharacterID != 42 || row.RecentKills != 7 || row.RecentLosses != 2 {
 		t.Fatalf("unexpected summary row: %#v", row)
@@ -18,6 +24,74 @@ func TestParseSummaryRowAndMapThreat(t *testing.T) {
 	threat := row.ToThreatBreakdown()
 	if threat.RecentKills != 7 || threat.RecentLosses != 2 || threat.Total <= 0 {
 		t.Fatalf("unexpected threat mapping: %#v", threat)
+	}
+}
+
+func TestParseSummaryRowFixtureActivePilotHasNonzeroCombatStats(t *testing.T) {
+	body := loadFixture(t, "summary_active_pilot.json")
+	row, warning, err := parseSummaryRow(body)
+	if err != nil {
+		t.Fatalf("parseSummaryRow err: %v", err)
+	}
+	if warning != nil {
+		t.Fatalf("expected no warning, got %+v", warning)
+	}
+	if row.RecentKills <= 0 {
+		t.Fatalf("expected nonzero kills, got %+v", row)
+	}
+	if row.RecentLosses <= 0 {
+		t.Fatalf("expected nonzero losses, got %+v", row)
+	}
+	if row.DangerRatio <= 0 {
+		t.Fatalf("expected nonzero danger ratio, got %+v", row)
+	}
+	if row.LastActivity.IsZero() {
+		t.Fatalf("expected nonzero last activity from payload variants, got %+v", row)
+	}
+}
+
+func TestParseSummaryRowShapeDriftFixtureEmitsWarning(t *testing.T) {
+	body := loadFixture(t, "summary_shape_drift.json")
+	row, warning, err := parseSummaryRow(body)
+	if err != nil {
+		t.Fatalf("parseSummaryRow err: %v", err)
+	}
+	if row.RecentKills != 0 || row.RecentLosses != 0 || row.DangerRatio != 0 {
+		t.Fatalf("expected zeroed parse result due shape drift, got %+v", row)
+	}
+	if warning == nil {
+		t.Fatal("expected parse warning for shape drift but got nil")
+	}
+	if warning.Code != "summary_all_zero_despite_nonzero_source" {
+		t.Fatalf("unexpected warning code: %+v", warning)
+	}
+}
+
+func TestParseSummaryRowRegressionKnownNonzeroFixtureNotAllZero(t *testing.T) {
+	body := loadFixture(t, "summary_active_pilot.json")
+	row, warning, err := parseSummaryRow(body)
+	if err != nil {
+		t.Fatalf("parseSummaryRow err: %v", err)
+	}
+	if warning != nil {
+		t.Fatalf("expected no warning for known-good fixture, got %+v", warning)
+	}
+	if row.RecentKills == 0 && row.RecentLosses == 0 && row.DangerRatio == 0 {
+		t.Fatalf("regression: parser produced all-zero output for known nonzero fixture: %+v", row)
+	}
+}
+
+func TestParseSummaryRowPreservesLastActivityFromEpochWhenNoLastSeen(t *testing.T) {
+	row, warning, err := parseSummaryRow([]byte(`{"id":123,"shipsDestroyed":4,"shipsLost":1,"dangerRatio":74,"epoch":1769007982}`))
+	if err != nil {
+		t.Fatalf("parseSummaryRow err: %v", err)
+	}
+	if warning != nil {
+		t.Fatalf("expected no warning, got %+v", warning)
+	}
+	want := time.Unix(1769007982, 0).UTC()
+	if !row.LastActivity.Equal(want) {
+		t.Fatalf("last activity mismatch: got %s want %s", row.LastActivity, want)
 	}
 }
 
@@ -81,4 +155,14 @@ func TestStatsClientFetchSummaryBuildsExactPathAndUserAgent(t *testing.T) {
 	if gotUserAgent == "" {
 		t.Fatal("request missing User-Agent header")
 	}
+}
+
+func loadFixture(t *testing.T, name string) []byte {
+	t.Helper()
+	path := filepath.Join("testdata", name)
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read fixture %s: %v", name, err)
+	}
+	return body
 }

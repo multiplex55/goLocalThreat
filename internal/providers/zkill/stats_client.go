@@ -53,7 +53,8 @@ func (c *StatsClient) FetchSummary(ctx context.Context, characterID int64) (Summ
 func (c *StatsClient) fetchSummary(ctx context.Context, characterID int64) (SummaryRow, error) {
 	cacheKey := strconv.FormatInt(characterID, 10)
 	if payload, ok := c.cache.get("stats", cacheKey); ok {
-		return parseSummaryRow(payload)
+		row, _, err := parseSummaryRow(payload)
+		return row, err
 	}
 	target := fmt.Sprintf("%s/api/stats/characterID/%s/", c.baseURL, cacheKey)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
@@ -79,30 +80,209 @@ func (c *StatsClient) fetchSummary(ctx context.Context, characterID int64) (Summ
 		return SummaryRow{}, err
 	}
 	c.cache.set("stats", cacheKey, body, cache.TTLFromHeaders(resp.Header, statsTTL))
-	return parseSummaryRow(body)
+	row, _, err := parseSummaryRow(body)
+	return row, err
 }
 
-func parseSummaryRow(body []byte) (SummaryRow, error) {
-	var payload struct {
-		CharacterID int64   `json:"character_id"`
-		Kills       int     `json:"kills"`
-		Losses      int     `json:"losses"`
-		Danger      float64 `json:"danger"`
-		LastSeen    string  `json:"last_seen"`
-	}
+type SummaryParseWarning struct {
+	Code      string
+	Message   string
+	Source    string
+	SourceVal float64
+}
+
+func parseSummaryRow(body []byte) (SummaryRow, *SummaryParseWarning, error) {
+	var payload map[string]any
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return SummaryRow{}, err
+		return SummaryRow{}, nil, err
 	}
-	parsed := SummaryRow{
-		CharacterID:  payload.CharacterID,
-		RecentKills:  payload.Kills,
-		RecentLosses: payload.Losses,
-		DangerRatio:  payload.Danger,
+
+	row := SummaryRow{}
+	row.CharacterID = int64FromAny(payload["character_id"])
+	if row.CharacterID == 0 {
+		row.CharacterID = int64FromAny(payload["characterID"])
 	}
-	if payload.LastSeen != "" {
-		if t, err := time.Parse(time.RFC3339, payload.LastSeen); err == nil {
-			parsed.LastActivity = t
+	if row.CharacterID == 0 {
+		row.CharacterID = int64FromAny(payload["id"])
+	}
+	if row.CharacterID == 0 {
+		if info, ok := payload["info"].(map[string]any); ok {
+			row.CharacterID = int64FromAny(info["id"])
 		}
 	}
-	return parsed, nil
+
+	row.RecentKills = firstInt(payload,
+		"kills",
+		"shipsDestroyed",
+		"ships_destroyed",
+	)
+	row.RecentLosses = firstInt(payload,
+		"losses",
+		"shipsLost",
+		"ships_lost",
+	)
+
+	if danger, ok := firstFloat(payload, "danger"); ok {
+		row.DangerRatio = danger
+	} else if dangerPct, ok := firstFloat(payload, "dangerRatio", "danger_ratio"); ok {
+		row.DangerRatio = dangerPct / 100
+	}
+
+	if ts := parseActivityTimestamp(payload); !ts.IsZero() {
+		row.LastActivity = ts
+	}
+
+	if warning := detectParseDriftWarning(payload, row); warning != nil {
+		return row, warning, nil
+	}
+	return row, nil, nil
+}
+
+func detectParseDriftWarning(payload map[string]any, row SummaryRow) *SummaryParseWarning {
+	if row.RecentKills != 0 || row.RecentLosses != 0 || row.DangerRatio != 0 {
+		return nil
+	}
+	if v, ok := firstFloat(payload, "shipsDestroyed", "kills", "ships_destroyed"); ok && v > 0 {
+		return &SummaryParseWarning{Code: "summary_all_zero_despite_nonzero_source", Message: "parsed summary returned all zero combat stats while source kills were nonzero", Source: "kills", SourceVal: v}
+	}
+	if v, ok := firstFloat(payload, "shipsLost", "losses", "ships_lost"); ok && v > 0 {
+		return &SummaryParseWarning{Code: "summary_all_zero_despite_nonzero_source", Message: "parsed summary returned all zero combat stats while source losses were nonzero", Source: "losses", SourceVal: v}
+	}
+	if v, ok := firstFloat(payload, "dangerRatio", "danger", "danger_ratio"); ok && v > 0 {
+		return &SummaryParseWarning{Code: "summary_all_zero_despite_nonzero_source", Message: "parsed summary returned all zero combat stats while source danger was nonzero", Source: "danger", SourceVal: v}
+	}
+	if v, ok := nestedFloat(payload, []string{"combat", "kills"}, []string{"summary", "kills"}, []string{"stats", "kills"}); ok && v > 0 {
+		return &SummaryParseWarning{Code: "summary_all_zero_despite_nonzero_source", Message: "parsed summary returned all zero combat stats while nested source kills were nonzero", Source: "nested.kills", SourceVal: v}
+	}
+	return nil
+}
+
+func parseActivityTimestamp(payload map[string]any) time.Time {
+	if s, ok := firstString(payload, "last_seen", "lastSeen", "last_activity", "lastActivity"); ok {
+		if t, ok := parseTimestamp(s); ok {
+			return t
+		}
+	}
+	if epoch, ok := firstFloat(payload, "epoch"); ok && epoch > 0 {
+		return time.Unix(int64(epoch), 0).UTC()
+	}
+	if info, ok := payload["info"].(map[string]any); ok {
+		if t := parseMongoDate(info, "lastApiUpdate", "lastAffUpdate"); !t.IsZero() {
+			return t
+		}
+	}
+	return time.Time{}
+}
+
+func parseMongoDate(parent map[string]any, keys ...string) time.Time {
+	for _, k := range keys {
+		raw, ok := parent[k].(map[string]any)
+		if !ok {
+			continue
+		}
+		d, ok := raw["$date"].(map[string]any)
+		if !ok {
+			continue
+		}
+		ms := int64FromAny(d["$numberLong"])
+		if ms <= 0 {
+			continue
+		}
+		return time.UnixMilli(ms).UTC()
+	}
+	return time.Time{}
+}
+
+func parseTimestamp(raw string) (time.Time, bool) {
+	if t, err := time.Parse(time.RFC3339, raw); err == nil {
+		return t, true
+	}
+	for _, layout := range []string{"2006-01-02 15:04:05", "2006-01-02T15:04:05"} {
+		if t, err := time.Parse(layout, raw); err == nil {
+			return t.UTC(), true
+		}
+	}
+	return time.Time{}, false
+}
+
+func firstInt(payload map[string]any, keys ...string) int {
+	for _, k := range keys {
+		if n, ok := payload[k]; ok {
+			if v := int(int64FromAny(n)); v != 0 {
+				return v
+			}
+		}
+	}
+	return 0
+}
+
+func firstFloat(payload map[string]any, keys ...string) (float64, bool) {
+	for _, k := range keys {
+		if n, ok := payload[k]; ok {
+			if v, ok := float64FromAny(n); ok {
+				return v, true
+			}
+		}
+	}
+	return 0, false
+}
+
+func firstString(payload map[string]any, keys ...string) (string, bool) {
+	for _, k := range keys {
+		if raw, ok := payload[k]; ok {
+			if s, ok := raw.(string); ok && s != "" {
+				return s, true
+			}
+		}
+	}
+	return "", false
+}
+
+func int64FromAny(v any) int64 {
+	f, ok := float64FromAny(v)
+	if !ok {
+		return 0
+	}
+	return int64(f)
+}
+
+func float64FromAny(v any) (float64, bool) {
+	switch t := v.(type) {
+	case float64:
+		return t, true
+	case float32:
+		return float64(t), true
+	case int:
+		return float64(t), true
+	case int64:
+		return float64(t), true
+	case int32:
+		return float64(t), true
+	case json.Number:
+		f, err := t.Float64()
+		return f, err == nil
+	case string:
+		f, err := strconv.ParseFloat(t, 64)
+		return f, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func nestedFloat(payload map[string]any, paths ...[]string) (float64, bool) {
+	for _, path := range paths {
+		var cur any = payload
+		for _, part := range path {
+			m, ok := cur.(map[string]any)
+			if !ok {
+				cur = nil
+				break
+			}
+			cur = m[part]
+		}
+		if v, ok := float64FromAny(cur); ok {
+			return v, true
+		}
+	}
+	return 0, false
 }
