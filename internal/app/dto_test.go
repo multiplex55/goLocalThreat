@@ -64,3 +64,30 @@ func TestToAnalysisSessionDTOAttachesPilotScopedWarnings(t *testing.T) {
 		t.Fatalf("expected pilot warning characterId %d, got %#v", charID, dto.Pilots[0].Warnings[0].CharacterID)
 	}
 }
+
+func TestToPilotDTOExportsThreatScoreAndBandForLowConfidenceCases(t *testing.T) {
+	dto := toPilotDTO(domain.PilotThreatRecord{
+		Identity: domain.CharacterIdentity{CharacterID: 99, Name: "Risky Pilot"},
+		Threat: domain.ThreatBreakdown{
+			ThreatScore:    37.5,
+			ThreatBand:     "medium",
+			Confidence:     0.4,
+			RecentKills:    6,
+			RecentLosses:   2,
+			ThreatReasons:  []string{"recentness unknown", "activity 20"},
+			DangerPercent:  85,
+			SoloPercent:    50,
+			AvgGangSize:    1.8,
+			Notes:          "summary + detail killmails: 2; partial timestamps: 1/2 killmails",
+		},
+		LastUpdated: time.Now().UTC(),
+		Freshness:   domain.FetchFreshness{Source: "zkill", DataAsOf: time.Now().UTC()},
+	}, nil)
+
+	if dto.ThreatScore <= 0 || dto.ThreatBand == "" {
+		t.Fatalf("expected threat score/band in DTO, got score=%.2f band=%q", dto.ThreatScore, dto.ThreatBand)
+	}
+	if dto.Kills != 6 || dto.Losses != 2 {
+		t.Fatalf("expected summary stats in DTO, got kills=%d losses=%d", dto.Kills, dto.Losses)
+	}
+}

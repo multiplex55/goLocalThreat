@@ -86,17 +86,24 @@ func (e Engine) Score(input EnrichedPilotInput) Result {
 	}
 
 	unknown := 0
+	knownWeight := 0.0
 	for _, p := range parts {
 		if p.Unknown {
 			unknown++
+			continue
 		}
+		knownWeight += p.Weight
 	}
 	confidence := clamp(1.0-0.6*(float64(unknown)/float64(len(parts))), 0.4, 1.0)
 
 	base := 0.0
+	knownContribution := 0.0
 	for i := range parts {
 		parts[i].Contribution = round2(parts[i].Raw * parts[i].Weight)
 		base += parts[i].Contribution
+		if !parts[i].Unknown {
+			knownContribution += parts[i].Contribution
+		}
 	}
 
 	uncertaintyRaw := round2((1.0 - confidence) * 100)
@@ -106,11 +113,19 @@ func (e Engine) Score(input EnrichedPilotInput) Result {
 		Weight:       e.settings.Weights.Uncertainty,
 		Contribution: round2(uncertaintyRaw * e.settings.Weights.Uncertainty),
 		Unknown:      false,
-		Explanation:  fmt.Sprintf("Unknown components %d/%d; confidence %.2f", unknown, len(parts), confidence),
+		Explanation:  fmt.Sprintf("Known components %d/%d; confidence %.2f", len(parts)-unknown, len(parts), confidence),
 	}
 	parts = append(parts, uncertainty)
 
-	total := round2(base*confidence + uncertainty.Contribution)
+	total := base
+	if knownWeight > 0 {
+		totalWeight := e.settings.Weights.Activity + e.settings.Weights.Lethality + e.settings.Weights.SoloRisk + e.settings.Weights.Recentness + e.settings.Weights.Context
+		coverage := knownWeight / totalWeight
+		normalizedKnown := knownContribution / knownWeight
+		total = round2((normalizedKnown * coverage) + uncertainty.Contribution)
+	} else {
+		total = round2(base*confidence + uncertainty.Contribution)
+	}
 	band := BandForScore(total, e.settings.Thresholds)
 	reasons := topReasons(parts)
 	sort.Slice(parts, func(i, j int) bool {
