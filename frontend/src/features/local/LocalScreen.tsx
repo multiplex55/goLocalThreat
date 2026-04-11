@@ -3,6 +3,7 @@ import { buildDetailPanel } from './DetailPanel';
 import { buildThreatTable } from './ThreatTable';
 import type { AnalyzeState } from './analyzeState';
 import type { ThreatRowView, ThreatTableColumn } from './types';
+import { toThreatRowView } from './threatRowMapper';
 import { dehydrateWorkspacePrefs, hydrateWorkspacePrefs } from './workspacePrefs';
 
 export interface LocalScreenProps {
@@ -18,53 +19,12 @@ export interface LocalScreenProps {
 }
 
 function toThreatRows(analyzeState: AnalyzeState): ThreatRowView[] {
-  const warningsByPilotId = analyzeState.data?.diagnostics.warningsByPilotId ?? {};
   return (analyzeState.data?.pilots ?? []).map((pilot, index) => {
-    const confidencePercent = Math.round(pilot.confidence * 100);
-    const reasonBreakdown = pilot.reasons.map((reason, reasonIndex) => ({
-      label: reason,
-      score: Math.max(5, 30 - (reasonIndex * 5)),
-    }));
-    const dataCompletenessMarkers = pilot.confidence < 0.7
-      ? ['Unknown due to partial killmail timestamps']
-      : [];
-
-    return {
-      id: pilot.id,
-      pilotName: pilot.name,
-      corp: pilot.corporation,
-      alliance: pilot.alliance,
-      mainShip: 'Unknown ship',
-      mainRecentShip: 'Unknown ship',
-      score: pilot.score,
-      threatBand: pilot.band === 'critical' || pilot.band === 'high' || pilot.band === 'medium' || pilot.band === 'low' ? pilot.band : 'low',
-      confidence: pilot.confidence,
-      reasonBreakdown,
-      kills: 0,
-      losses: 0,
-      dangerPercent: 0,
-      soloPercent: 0,
-      avgGangSize: 0,
-      soloGangTendency: 'Unknown',
-      lastKill: 'Unknown',
-      lastLoss: 'Unknown',
-      lastActivitySummary: 'No recent kill/loss timestamps available',
-      freshness: confidencePercent >= 70 ? 'Recently Active' : 'Stale Data',
-      tags: pilot.reasons,
-      notes: '',
-      lastSeen: `confidence ${confidencePercent}%`,
-      status: analyzeState.status === 'loading' ? 'loading' : 'ready',
-      dataCompletenessMarkers,
-      warnings: warningsByPilotId[pilot.id]?.map((warning) => ({
-        provider: warning.provider,
-        severity: warning.severity,
-        userVisible: warning.userVisible,
-        message: warning.message,
-      })) ?? [],
-    };
-  })
-    .map((row, index) => ({ ...row, id: row.id || String(index) }));
+    const row = toThreatRowView(pilot, analyzeState.status === 'loading' ? 'loading' : 'ready');
+    return { ...row, id: row.id || String(index) };
+  });
 }
+
 
 function nextSelectionIndex(currentIndex: number, rowCount: number, key: 'ArrowUp' | 'ArrowDown'): number {
   if (rowCount === 0) return -1;
@@ -283,7 +243,11 @@ export function LocalScreen({
                     return next;
                   })}
                 >
-                  {table.headers.filter((h) => h.visible).map((h) => <td key={h.column}>{h.column === 'pilotName' && pinnedRowIds.has(tableRow.id) ? '📌 ' : ''}{Array.isArray(tableRow.row[h.column]) ? (tableRow.row[h.column] as string[]).join(', ') : String(tableRow.row[h.column])}</td>)}
+                  {table.headers.filter((h) => h.visible).map((h) => {
+                    const value = tableRow.row[h.column];
+                    const rendered = Array.isArray(value) ? value.join(', ') : (value ?? '—');
+                    return <td key={h.column}>{h.column === 'pilotName' && pinnedRowIds.has(tableRow.id) ? '📌 ' : ''}{String(rendered)}</td>;
+                  })}
                 </tr>
               ))}
             </tbody>

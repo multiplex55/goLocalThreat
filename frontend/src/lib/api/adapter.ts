@@ -1,18 +1,68 @@
 import * as AppService from '../../../wailsjs/go/app/AppService';
 import type { SettingsViewModel } from '../../features/settings/types';
-import type { AnalysisSessionView, ParseWarningView, PilotThreatView } from '../../types/analysis';
+import type { AnalysisSessionView, ParseWarningView, PilotThreatView, ThreatBand } from '../../types/analysis';
 
-function toPilotView(pilot: AppService.PilotThreatDTO, index: number): PilotThreatView {
-  const id = String(pilot.identity?.characterId ?? `pilot-${index}`);
+function toThreatBand(band: string | undefined): ThreatBand {
+  if (band === 'critical' || band === 'high' || band === 'medium' || band === 'low') return band;
+  return 'unknown';
+}
+
+
+function nullableText(value: string | undefined): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+function toWarningView(warning: AppService.ParseWarningDTO): ParseWarningView {
   return {
-    id,
-    name: pilot.identity?.name ?? `Unknown #${index + 1}`,
-    corporation: pilot.identity?.corpName ?? (pilot.identity?.corpId ? `Corp #${pilot.identity.corpId}` : 'Unknown corporation'),
-    alliance: pilot.identity?.allianceName ?? (pilot.identity?.allianceId ? `Alliance #${pilot.identity.allianceId}` : 'Unknown alliance'),
-    score: Math.round(pilot.threat?.threatScore ?? 0),
-    band: pilot.threat?.threatBand ?? 'unknown',
-    reasons: pilot.threat?.threatReasons ?? [],
+    provider: warning.provider,
+    code: warning.code,
+    message: warning.message,
+    characterId: warning.characterId,
+    characterName: warning.characterName,
+    severity: warning.severity ?? 'info',
+    userVisible: warning.userVisible ?? true,
+    category: warning.category,
+  };
+}
+
+function toPilotView(pilot: AppService.PilotThreatDTO, warnings: ParseWarningView[]): PilotThreatView {
+  const identity = pilot.identity;
+
+  return {
+    id: String(identity.characterId),
+    identity: {
+      characterId: identity.characterId,
+      characterName: identity.name,
+      corporationName: nullableText(identity.corpName),
+      corporationTicker: nullableText(identity.corpTicker),
+      allianceName: nullableText(identity.allianceName),
+      allianceTicker: nullableText(identity.allianceTicker),
+      portraitUrl: null,
+      metadata: {
+        corporationId: identity.corpId ?? null,
+        allianceId: identity.allianceId ?? null,
+      },
+    },
+    score: Math.round(pilot.threat?.threatScore ?? pilot.threatScore ?? 0),
+    band: toThreatBand(pilot.threat?.threatBand ?? pilot.threatBand),
     confidence: pilot.threat?.confidence ?? 0,
+    reasons: pilot.threat?.threatReasons ?? [],
+    tags: pilot.tags ?? [],
+    notes: nullableText(pilot.threat?.notes ?? pilot.notes),
+    kills: pilot.threat?.recentKills ?? pilot.kills ?? null,
+    losses: pilot.threat?.recentLosses ?? pilot.losses ?? null,
+    dangerPercent: pilot.threat?.dangerPercent ?? pilot.dangerPercent ?? null,
+    soloPercent: pilot.threat?.soloPercent ?? pilot.soloPercent ?? null,
+    avgGangSize: pilot.threat?.avgGangSize ?? pilot.avgGangSize ?? null,
+    mainShip: nullableText(pilot.threat?.mainShip ?? pilot.mainShip),
+    lastKill: nullableText(pilot.threat?.lastKill ?? pilot.lastKill),
+    lastLoss: nullableText(pilot.threat?.lastLoss ?? pilot.lastLoss),
+    freshness: {
+      source: nullableText(pilot.freshness?.source),
+      dataAsOf: nullableText(pilot.freshness?.dataAsOf),
+      isStale: pilot.freshness?.isStale ?? null,
+    },
+    warnings,
   };
 }
 
@@ -40,20 +90,13 @@ function toSettingsDTO(model: SettingsViewModel): AppService.SettingsDTO {
   };
 }
 
+// Migration note: this is the canonical DTO -> UI mapping path.
+// Keep backend field normalization here so feature-level code does not fork transform logic.
 export function toAnalysisSessionView(dto: AppService.AnalysisSessionDTO): AnalysisSessionView {
   const unresolvedNames = dto.unresolvedNames ?? [];
   const candidateNamesCount = dto.source.candidateNames.length;
   const resolvedCount = dto.pilots.length;
-  const warnings: ParseWarningView[] = dto.warnings.map((warning) => ({
-    provider: warning.provider,
-    code: warning.code,
-    message: warning.message,
-    characterId: warning.characterId,
-    characterName: warning.characterName,
-    severity: warning.severity ?? 'info',
-    userVisible: warning.userVisible ?? true,
-    category: warning.category,
-  }));
+  const warnings: ParseWarningView[] = dto.warnings.map(toWarningView);
   const globalWarnings = warnings.filter((warning) => !warning.characterId);
   const warningsByPilotId: Record<string, ParseWarningView[]> = {};
   warnings.forEach((warning) => {
@@ -97,7 +140,7 @@ export function toAnalysisSessionView(dto: AppService.AnalysisSessionDTO): Analy
       warningCount: dto.source.warnings.length,
       warnings: dto.source.warnings.map((w) => ({ code: w.code, message: w.message })),
     },
-    pilots: dto.pilots.map(toPilotView),
+    pilots: dto.pilots.map((pilot) => toPilotView(pilot, warningsByPilotId[String(pilot.identity.characterId)] ?? [])),
   };
 }
 

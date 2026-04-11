@@ -17,15 +17,45 @@ export interface ParseSummaryView {
   warnings: ParseWarningView[];
 }
 
+export type ThreatBand = 'critical' | 'high' | 'medium' | 'low' | 'unknown';
+
+export interface PilotIdentityView {
+  characterId: number;
+  characterName: string;
+  corporationName: string | null;
+  corporationTicker: string | null;
+  allianceName: string | null;
+  allianceTicker: string | null;
+  portraitUrl: string | null;
+  metadata: {
+    corporationId: number | null;
+    allianceId: number | null;
+  };
+}
+
 export interface PilotThreatView {
   id: string;
-  name: string;
-  corporation: string;
-  alliance: string;
+  identity: PilotIdentityView;
   score: number;
-  band: string;
-  reasons: string[];
+  band: ThreatBand;
   confidence: number;
+  reasons: string[];
+  tags: string[];
+  notes: string | null;
+  kills: number | null;
+  losses: number | null;
+  dangerPercent: number | null;
+  soloPercent: number | null;
+  avgGangSize: number | null;
+  mainShip: string | null;
+  lastKill: string | null;
+  lastLoss: string | null;
+  freshness: {
+    source: string | null;
+    dataAsOf: string | null;
+    isStale: boolean | null;
+  };
+  warnings: ParseWarningView[];
 }
 
 export interface AnalysisSessionView {

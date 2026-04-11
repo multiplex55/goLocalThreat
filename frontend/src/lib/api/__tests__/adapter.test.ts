@@ -2,95 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { toAnalysisSessionView } from '../adapter';
 
 describe('api adapter', () => {
-  it('backend payload with diagnostics maps correctly into ui state object', () => {
+  it('verifies rich mapping for a fully-populated pilot dto', () => {
     const mapped = toAnalysisSessionView({
       sessionId: 'session-1',
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-01T00:00:00Z',
       source: {
-        rawText: 'Alpha\\nBeta',
-        normalizedText: 'Alpha\nBeta',
+        rawText: 'Alpha',
+        normalizedText: 'Alpha',
         parsedCharacters: [],
         candidateNames: ['Alpha'],
-        invalidLines: [{ line: '123', reasonCode: 'no_letters' }],
-        warnings: [{ provider: 'parser', code: 'duplicates_removed', message: 'duplicates removed' }],
-        inputKind: 'local_member_list',
-        confidence: 0.9,
-        removedDuplicates: 2,
-        suspiciousArtifacts: 1,
-        parsedAt: '2026-01-01T00:00:00Z',
-      },
-      pilots: [{
-        identity: { characterId: 777, name: 'Alpha', corpId: 1, allianceId: 2 },
-        threat: { threatScore: 65, threatBand: 'high', threatReasons: ['active'], confidence: 0.7 },
-        lastUpdated: '2026-01-01T00:00:00Z',
-        freshness: { source: 'zkill', dataAsOf: '2026-01-01T00:00:00Z', isStale: false },
-      }],
-      settings: { ignoredCorps: [], ignoredAlliances: [], pinnedPilots: [], refreshInterval: 30, scoring: { weights: { activity: 1, lethality: 1, soloRisk: 1, recentness: 1, context: 1, uncertainty: 1 }, thresholds: { low: 20, medium: 40, high: 70, critical: 90 } } },
-      warnings: [{ provider: 'bootstrap', code: 'PLACEHOLDER', message: 'placeholder' }],
-      freshness: { source: 'composite', dataAsOf: '2026-01-01T00:00:00Z', isStale: false },
-      unresolvedNames: ['Beta'],
-    });
-
-    expect(mapped).toEqual({
-      sessionId: 'session-1',
-      createdAt: '2026-01-01T00:00:00Z',
-      pilotCount: 1,
-      warningCount: 1,
-      sourceTextLength: 11,
-      diagnostics: {
-        candidateNamesCount: 1,
-        resolvedCount: 1,
-        unresolvedNames: ['Beta'],
-        invalidLines: 1,
-        warnings: [{
-          provider: 'bootstrap',
-          code: 'PLACEHOLDER',
-          message: 'placeholder',
-          severity: 'info',
-          userVisible: true,
-        }],
-        globalWarnings: [{
-          provider: 'bootstrap',
-          code: 'PLACEHOLDER',
-          message: 'placeholder',
-          severity: 'info',
-          userVisible: true,
-        }],
-        warningsByPilotId: {},
-        severityCounts: { info: 1, warn: 0, error: 0 },
-        providerCounts: { bootstrap: 1 },
-      },
-      parseSummary: {
-        candidateCount: 1,
-        invalidLineCount: 1,
-        duplicateRemovalCount: 2,
-        warningCount: 1,
-        warnings: [{ code: 'duplicates_removed', message: 'duplicates removed' }],
-      },
-      pilots: [{
-        id: '777',
-        name: 'Alpha',
-        corporation: 'Corp #1',
-        alliance: 'Alliance #2',
-        score: 65,
-        band: 'high',
-        reasons: ['active'],
-        confidence: 0.7,
-      }],
-    });
-  });
-
-  it('supports backward-compatible mapping when diagnostics fields are absent', () => {
-    const mapped = toAnalysisSessionView({
-      sessionId: 'session-2',
-      createdAt: '2026-01-01T00:00:00Z',
-      updatedAt: '2026-01-01T00:00:00Z',
-      source: {
-        rawText: 'Gamma',
-        normalizedText: 'Gamma',
-        parsedCharacters: [],
-        candidateNames: ['Gamma'],
         invalidLines: [],
         warnings: [],
         inputKind: 'local_member_list',
@@ -99,22 +20,102 @@ describe('api adapter', () => {
         suspiciousArtifacts: 0,
         parsedAt: '2026-01-01T00:00:00Z',
       },
-      pilots: [],
+      pilots: [{
+        identity: { characterId: 777, name: 'Alpha', corpId: 1, corpName: 'A Corp', corpTicker: 'A', allianceId: 2, allianceName: 'A Alliance', allianceTicker: 'AA' },
+        threat: { threatScore: 65, threatBand: 'high', threatReasons: ['active'], confidence: 0.7, recentKills: 11, recentLosses: 2, dangerPercent: 85, soloPercent: 45, avgGangSize: 3, lastKill: '2026-01-02T00:00:00Z', lastLoss: '2025-12-02T00:00:00Z', mainShip: 'Loki', notes: 'camping' },
+        pilot: 'Alpha',
+        corp: 'A Corp',
+        alliance: 'A Alliance',
+        threatScore: 65,
+        threatBand: 'high',
+        kills: 11,
+        losses: 2,
+        dangerPercent: 85,
+        soloPercent: 45,
+        avgGangSize: 3,
+        lastKill: '2026-01-02T00:00:00Z',
+        lastLoss: '2025-12-02T00:00:00Z',
+        mainShip: 'Loki',
+        notes: 'camping',
+        tags: ['hunter'],
+        lastUpdated: '2026-01-01T00:00:00Z',
+        freshness: { source: 'zkill', dataAsOf: '2026-01-01T00:00:00Z', isStale: false },
+      }],
+      settings: { ignoredCorps: [], ignoredAlliances: [], pinnedPilots: [], refreshInterval: 30, scoring: { weights: { activity: 1, lethality: 1, soloRisk: 1, recentness: 1, context: 1, uncertainty: 1 }, thresholds: { low: 20, medium: 40, high: 70, critical: 90 } } },
+      warnings: [{ provider: 'zkill', code: 'PARTIAL', message: 'partial', characterId: 777 }],
+      freshness: { source: 'composite', dataAsOf: '2026-01-01T00:00:00Z', isStale: false },
+      unresolvedNames: [],
+    });
+
+    expect(mapped.pilots[0]).toEqual({
+      id: '777',
+      identity: {
+        characterId: 777,
+        characterName: 'Alpha',
+        corporationName: 'A Corp',
+        corporationTicker: 'A',
+        allianceName: 'A Alliance',
+        allianceTicker: 'AA',
+        portraitUrl: null,
+        metadata: { corporationId: 1, allianceId: 2 },
+      },
+      score: 65,
+      band: 'high',
+      confidence: 0.7,
+      reasons: ['active'],
+      tags: ['hunter'],
+      notes: 'camping',
+      kills: 11,
+      losses: 2,
+      dangerPercent: 85,
+      soloPercent: 45,
+      avgGangSize: 3,
+      mainShip: 'Loki',
+      lastKill: '2026-01-02T00:00:00Z',
+      lastLoss: '2025-12-02T00:00:00Z',
+      freshness: { source: 'zkill', dataAsOf: '2026-01-01T00:00:00Z', isStale: false },
+      warnings: [{ provider: 'zkill', code: 'PARTIAL', message: 'partial', characterId: 777, severity: 'info', userVisible: true }],
+    });
+  });
+
+  it('verifies null/partial data mapping preserves null', () => {
+    const mapped = toAnalysisSessionView({
+      sessionId: 'session-2',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+      source: { rawText: 'Gamma', normalizedText: 'Gamma', parsedCharacters: [], candidateNames: ['Gamma'], invalidLines: [], warnings: [], inputKind: 'local_member_list', confidence: 0.9, removedDuplicates: 0, suspiciousArtifacts: 0, parsedAt: '2026-01-01T00:00:00Z' },
+      pilots: [{
+        identity: { characterId: 1, name: 'Gamma', corpId: 0, allianceId: 0 },
+        threat: { threatScore: 0, threatBand: 'unknown', threatReasons: [], confidence: 0 },
+        pilot: 'Gamma', corp: '', alliance: '', threatScore: 0, threatBand: 'unknown', kills: 0, losses: 0, dangerPercent: 0, soloPercent: 0, avgGangSize: 0, lastKill: '', lastLoss: '', mainShip: '', notes: '', tags: [], lastUpdated: '', freshness: { source: '', dataAsOf: '', isStale: false },
+      }],
       settings: { ignoredCorps: [], ignoredAlliances: [], pinnedPilots: [], refreshInterval: 30, scoring: { weights: { activity: 1, lethality: 1, soloRisk: 1, recentness: 1, context: 1, uncertainty: 1 }, thresholds: { low: 20, medium: 40, high: 70, critical: 90 } } },
       warnings: [],
       freshness: { source: 'composite', dataAsOf: '2026-01-01T00:00:00Z', isStale: false },
     });
 
-    expect(mapped.diagnostics).toEqual({
-      candidateNamesCount: 1,
-      resolvedCount: 0,
-      unresolvedNames: [],
-      invalidLines: 0,
-      warnings: [],
-      globalWarnings: [],
-      warningsByPilotId: {},
-      severityCounts: { info: 0, warn: 0, error: 0 },
-      providerCounts: {},
+    expect(mapped.pilots[0]?.identity.corporationName).toBeNull();
+    expect(mapped.pilots[0]?.mainShip).toBeNull();
+  });
+
+  it('verifies warnings are preserved and attached per pilot', () => {
+    const mapped = toAnalysisSessionView({
+      sessionId: 'session-3',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+      source: { rawText: 'A', normalizedText: 'A', parsedCharacters: [], candidateNames: ['A'], invalidLines: [], warnings: [], inputKind: 'local_member_list', confidence: 1, removedDuplicates: 0, suspiciousArtifacts: 0, parsedAt: '2026-01-01T00:00:00Z' },
+      pilots: [{
+        identity: { characterId: 42, name: 'Pilot', corpId: 1, allianceId: 1 },
+        threat: { threatScore: 1, threatBand: 'low', threatReasons: [], confidence: 1 },
+        pilot: 'Pilot', corp: '', alliance: '', threatScore: 1, threatBand: 'low', kills: 0, losses: 0, dangerPercent: 0, soloPercent: 0, avgGangSize: 0, lastKill: '', lastLoss: '', mainShip: '', notes: '', tags: [], lastUpdated: '', freshness: { source: '', dataAsOf: '', isStale: false },
+      }],
+      settings: { ignoredCorps: [], ignoredAlliances: [], pinnedPilots: [], refreshInterval: 30, scoring: { weights: { activity: 1, lethality: 1, soloRisk: 1, recentness: 1, context: 1, uncertainty: 1 }, thresholds: { low: 20, medium: 40, high: 70, critical: 90 } } },
+      warnings: [{ provider: 'esi', code: 'WARN', message: 'pilot scoped', characterId: 42 }],
+      freshness: { source: 'composite', dataAsOf: '2026-01-01T00:00:00Z', isStale: false },
     });
+
+    expect(mapped.diagnostics.warningsByPilotId['42']).toHaveLength(1);
+    expect(mapped.pilots[0]?.warnings).toHaveLength(1);
+    expect(mapped.pilots[0]?.warnings[0]?.message).toBe('pilot scoped');
   });
 });

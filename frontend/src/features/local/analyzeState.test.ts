@@ -32,7 +32,7 @@ describe('analyze state machine', () => {
           warningCount: 0,
           warnings: [],
         },
-        pilots: [{ id: '1', name: 'Alpha', corporation: 'Corp', alliance: 'Alliance', score: 80, band: 'high', reasons: [], confidence: 0.9 }],
+        pilots: [{ id: '1', identity: { characterId: 1, characterName: 'Alpha', corporationName: 'Corp', corporationTicker: null, allianceName: 'Alliance', allianceTicker: null, portraitUrl: null, metadata: { corporationId: 1, allianceId: 1 } }, score: 80, band: 'high', confidence: 0.9, reasons: [], tags: [], notes: null, kills: null, losses: null, dangerPercent: null, soloPercent: null, avgGangSize: null, mainShip: null, lastKill: null, lastLoss: null, freshness: { source: null, dataAsOf: null, isStale: null }, warnings: [] }],
       },
     });
 
