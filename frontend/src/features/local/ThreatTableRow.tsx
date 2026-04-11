@@ -123,10 +123,7 @@ export function buildThreatTableRow(row: ThreatRowView, selected: boolean, compa
   const tags = normalizedTags.map((tag) => buildTagPill(tag));
   const visible = tags.slice(0, MAX_VISIBLE_TAGS);
   const overflow = tags.slice(MAX_VISIBLE_TAGS);
-  const rationale = row.reasonBreakdown.length
-    ? row.reasonBreakdown.map((entry) => `${entry.label} (+${entry.score})`).join(', ')
-    : 'No rationale available';
-  const fullTooltip = [`Tags: ${row.tags.join(', ') || PLACEHOLDER}`, `Rationale: ${rationale}`].join(' • ');
+  const fullTooltip = `Tags: ${row.tags.join(', ') || PLACEHOLDER}`;
 
   const score = buildScoreBadge(row.score);
   const scoreBand = formatThreatBand(row.threatBand);

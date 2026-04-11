@@ -12,7 +12,7 @@ function buildState(): AnalyzeState {
       sessionId: 's1',
       createdAt: '2026-01-01T00:00:00Z',
       pilotCount: 1,
-      warningCount: 2,
+      warningCount: 4,
       sourceTextLength: 10,
       diagnostics: {
         candidateNamesCount: 1,
@@ -23,7 +23,7 @@ function buildState(): AnalyzeState {
         globalWarnings: [],
         warningsByPilotId: {},
         warningCodeCounts: {},
-        severityCounts: { info: 1, warn: 1, error: 0 },
+        severityCounts: { info: 1, warn: 3, error: 0 },
         providerCounts: {},
       },
       parseSummary: { candidateCount: 1, invalidLineCount: 0, duplicateRemovalCount: 0, warningCount: 0, warnings: [] },
@@ -34,7 +34,7 @@ function buildState(): AnalyzeState {
           score: 91,
           band: 'critical',
           confidence: 0.9,
-          reasons: [],
+          reasons: ['Hunter', 'FC', 'Cyno', 'Logi bait'],
           tags: ['FC'],
           notes: 'Keep tackled first',
           kills: 7,
@@ -47,8 +47,10 @@ function buildState(): AnalyzeState {
           lastLoss: '2025-12-01T00:00:00Z',
           freshness: { source: 'zkill', dataAsOf: '2026-01-01T00:00:00Z', isStale: false },
           warnings: [
-            { code: 'DETAIL_TIME_INVALID', rawCode: 'DETAIL_TIME_INVALID', message: 'provider says detail invalid', normalizedLabel: 'Partial timestamps', severity: 'warn', provider: 'zkill', userVisible: true, category: 'data_quality', displayTier: 'detail_panel' },
-            { code: 'DETAIL_TIME_INVALID', rawCode: 'DETAIL_TIME_INVALID', message: 'duplicate', normalizedLabel: 'Partial timestamps', severity: 'warn', provider: 'zkill', userVisible: true, category: 'data_quality', displayTier: 'detail_panel' },
+            { code: 'DETAIL_TIME_INVALID', rawCode: 'DETAIL_TIME_INVALID', message: 'provider says detail invalid', severity: 'warn', provider: 'zkill', userVisible: true, category: 'data_quality', displayTier: 'detail_panel' },
+            { code: 'DETAIL_TIME_INVALID', rawCode: 'DETAIL_TIME_INVALID', message: 'duplicate', severity: 'warn', provider: 'zkill', userVisible: true, category: 'data_quality', displayTier: 'detail_panel' },
+            { code: 'DETAIL_ACTIVITY_INCOMPLETE', rawCode: 'DETAIL_ACTIVITY_INCOMPLETE', message: 'recent may be missing', severity: 'warn', provider: 'zkill', userVisible: true, category: 'data_quality', displayTier: 'detail_panel' },
+            { code: 'NETWORK_PROVIDER_WARN', rawCode: 'NETWORK_PROVIDER_WARN', message: 'degraded provider', severity: 'warn', provider: 'zkill', userVisible: true, category: 'provider', displayTier: 'detail_panel' },
           ],
         },
       ],
@@ -57,12 +59,28 @@ function buildState(): AnalyzeState {
 }
 
 describe('PilotDetailPanel in LocalScreen', () => {
-  it('shows grouped pilot warning explanations in detail panel', () => {
+  it('renders detail sections in the expected order', () => {
     render(<LocalScreen pastedText="" analyzeState={buildState()} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
 
     const detailPane = screen.getByTestId('detail-pane');
-    const warnings = within(detailPane).getByTestId('detail-warnings');
-    expect(warnings).toHaveTextContent('Partial timestamps (2)');
+    const headings = within(detailPane).getAllByRole('heading', { level: 4 }).map((node) => node.textContent);
+    expect(headings).toEqual(['Identity', 'Summary metrics', 'Why this score', 'Warnings & data quality']);
+  });
+
+  it('shows only top 3 reasons in why-this-score block', () => {
+    render(<LocalScreen pastedText="" analyzeState={buildState()} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
+    const reasons = within(screen.getByTestId('detail-reasons')).getAllByRole('listitem');
+    expect(reasons).toHaveLength(3);
+    expect(screen.getByTestId('detail-reasons')).toHaveTextContent('Hunter (+30)');
+    expect(screen.getByTestId('detail-reasons')).not.toHaveTextContent('Logi bait');
+  });
+
+  it('groups warnings into human-readable categories', () => {
+    render(<LocalScreen pastedText="" analyzeState={buildState()} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
+
+    const warnings = screen.getByTestId('detail-warnings');
+    expect(warnings).toHaveTextContent('Data quality: Partial timestamps, Recent activity incomplete');
+    expect(warnings).toHaveTextContent('Provider: degraded provider');
     expect(warnings.textContent?.match(/Partial timestamps/g)?.length).toBe(1);
   });
 });

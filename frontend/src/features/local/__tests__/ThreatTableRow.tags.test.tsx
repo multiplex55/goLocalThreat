@@ -56,7 +56,7 @@ describe('ThreatTableRow tag rendering', () => {
     expect(normalizeTagLabel('paragraph: this should never be a pill')).toBeNull();
   });
 
-  it('stores full tags and rationale in tooltip payload', () => {
+  it('stores tag context in tooltip payload without verbose rationale', () => {
     const rendered = buildThreatTableRow(
       makeRow(['FC', 'Long fallback explanation from provider with uncertain attribution']),
       false,
@@ -64,7 +64,7 @@ describe('ThreatTableRow tag rendering', () => {
     );
 
     expect(rendered.tagCell.tooltip).toContain('Long fallback explanation');
-    expect(rendered.tagCell.tooltip).toContain('Rationale: Active pings (+5)');
+    expect(rendered.tagCell.tooltip).not.toContain('Rationale:');
     expect(rendered.tagCell.visible.map((tag) => tag.label)).toEqual(['FC']);
   });
 
