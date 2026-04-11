@@ -31,9 +31,15 @@ const row: ThreatRowView = {
 };
 
 describe('threat table class structure snapshot', () => {
-  it('keeps row style hooks stable', () => {
+  it('keeps sticky and compact class hooks stable', () => {
     const table = buildThreatTable([row], 'snap-1', true);
 
-    expect(table.rows[0]?.rendered).toMatchSnapshot();
+    expect({
+      stickyHeader: table.stickyHeader,
+      scrollContainerClassName: table.scrollContainerClassName,
+      bodyClassName: table.bodyClassName,
+      headerClassName: table.headers[0]?.className,
+      row: table.rows[0]?.rendered,
+    }).toMatchSnapshot();
   });
 });

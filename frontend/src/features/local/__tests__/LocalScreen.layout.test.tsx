@@ -79,6 +79,7 @@ describe('LocalScreen layout regions', () => {
     const center = screen.getByTestId('local-center-panel');
     const right = screen.getByTestId('local-right-panel');
     const mainGrid = screen.getByTestId('local-layout-grid');
+    expect(mainGrid).toHaveAttribute('data-layout-mode', 'desktop');
     expect(mainGrid.contains(left)).toBe(true);
     expect(mainGrid.contains(center)).toBe(true);
     expect(mainGrid.contains(right)).toBe(true);

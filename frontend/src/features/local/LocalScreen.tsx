@@ -236,11 +236,13 @@ export function LocalScreen({
   return (
     <section className="local-screen" data-testid="local-screen" tabIndex={0} onKeyDown={onKeyDown} aria-label="Local intel workspace">
       <header className="local-top-toolbar" data-testid="local-top-toolbar" aria-label="Top action and tabs bar">
-        <button type="button" onClick={onAnalyze} disabled={analyzeState.status === 'loading'}>Analyze</button>
-        <button type="button" onClick={refreshSelected}>Refresh Selected</button>
-        <button type="button" onClick={() => void copyName(selectedRow?.pilotName ?? null)} disabled={!selectedRow}>Copy Selected</button>
-        <button type="button" onClick={() => void copyAllNames()} disabled={!rows.length}>Copy All</button>
-        <button type="button" onClick={onSettings}>Settings</button>
+        <div className="local-top-toolbar-group" data-testid="local-toolbar-actions">
+          <button type="button" onClick={onAnalyze} disabled={analyzeState.status === 'loading'}>Analyze</button>
+          <button type="button" onClick={refreshSelected}>Refresh Selected</button>
+          <button type="button" onClick={() => void copyName(selectedRow?.pilotName ?? null)} disabled={!selectedRow}>Copy Selected</button>
+          <button type="button" onClick={() => void copyAllNames()} disabled={!rows.length}>Copy All</button>
+          <button type="button" onClick={onSettings}>Settings</button>
+        </div>
         {rightCollapsed ? (
           <nav aria-label="Pane tabs" className="local-pane-tabs" data-testid="local-pane-tabs">
             {!leftCollapsed && <button type="button" aria-pressed={activePane === 'left'} onClick={() => setActivePane('left')}>Roster</button>}
@@ -272,12 +274,12 @@ export function LocalScreen({
           <div data-testid="column-toggles">{table.headers.map((h) => (
             <label key={h.column}><input type="checkbox" checked={visibleColumns[h.column]} onChange={() => setVisibleColumns((curr) => ({ ...curr, [h.column]: !curr[h.column] }))} />{h.column}</label>
           ))}</div>
-          <div className="local-center-table-scroll">
+          <div className={`local-center-table-scroll ${table.scrollContainerClassName}`} data-testid="local-center-table-scroll">
             <table data-testid="threat-table" aria-label="Threat rows">
               <thead>
                 <tr>
                   {table.headers.filter((h) => h.visible).map((h) => (
-                    <th key={h.column} style={{ width: columnWidths[h.column] ? `${columnWidths[h.column]}px` : undefined }}>
+                    <th key={h.column} className={h.className} style={{ width: columnWidths[h.column] ? `${columnWidths[h.column]}px` : undefined }}>
                       <button type="button" onClick={() => {
                         if (sortBy === h.column) {
                           setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -290,7 +292,7 @@ export function LocalScreen({
                   ))}
                 </tr>
               </thead>
-              <tbody>
+              <tbody className={table.bodyClassName}>
                 {table.rows.map((tableRow) => (
                   <tr
                     key={tableRow.id}
