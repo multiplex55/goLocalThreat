@@ -18,4 +18,11 @@ describe('warning routing', () => {
       normalizedLabel: 'Derived from summary only',
     });
   });
+
+  it('normalizes unknown scoped warnings to row hint and approved vocabulary', () => {
+    expect(resolveWarningPresentation('SOME_NEW_WARNING', 'provider', true)).toEqual({
+      displayTier: 'row_hint',
+      normalizedLabel: 'Recent activity incomplete',
+    });
+  });
 });

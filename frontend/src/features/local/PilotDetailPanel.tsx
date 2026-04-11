@@ -12,8 +12,14 @@ interface WarningGroup {
 const WARNING_LABEL_BY_CODE: Record<string, string> = {
   DETAIL_TIME_INVALID: 'Partial timestamps',
   DETAIL_ACTIVITY_INCOMPLETE: 'Recent activity incomplete',
-  SUMMARY_ONLY: 'Data quality reduced',
-  DERIVED_SUMMARY_ONLY: 'Data quality reduced',
+  SUMMARY_ONLY: 'Derived from summary only',
+  DERIVED_SUMMARY_ONLY: 'Derived from summary only',
+  DETAIL_TIME_MISSING: 'Recent activity incomplete',
+  SUMMARY_FAILED: 'Summary unavailable',
+  DETAIL_FAILED: 'Recent activity incomplete',
+  RESOLVE_FAILED: 'Pilot lookup incomplete',
+  UNRESOLVED_NAME: 'Pilot lookup incomplete',
+  IDENTITY_PARTIAL: 'Pilot profile partial',
 };
 
 const WARNING_CATEGORY_LABELS: Record<string, string> = {
@@ -29,12 +35,11 @@ function formatCorpAlliance(name: string, ticker?: string): string {
 }
 
 function normalizeWarningLabel(warning: NonNullable<ThreatRowView['warnings']>[number]): string {
-  if (warning.normalizedLabel?.trim()) return warning.normalizedLabel;
+  if (warning.normalizedLabel?.trim() && Object.values(WARNING_LABEL_BY_CODE).includes(warning.normalizedLabel)) return warning.normalizedLabel;
   const mapped = warning.code ? WARNING_LABEL_BY_CODE[warning.code] : undefined;
   if (mapped) return mapped;
-  if (warning.rawCode === 'DETAIL_TIME_INVALID') return 'Partial timestamps';
-  if (warning.rawCode === 'DETAIL_ACTIVITY_INCOMPLETE') return 'Recent activity incomplete';
-  return warning.message || 'Data quality reduced';
+  if (warning.rawCode && WARNING_LABEL_BY_CODE[warning.rawCode]) return WARNING_LABEL_BY_CODE[warning.rawCode];
+  return 'Recent activity incomplete';
 }
 
 function deriveWarningCategory(warning: NonNullable<ThreatRowView['warnings']>[number]): string {

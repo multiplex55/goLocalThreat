@@ -83,7 +83,24 @@ describe('PilotDetailPanel in LocalScreen', () => {
 
     const warnings = screen.getByTestId('detail-warnings');
     expect(warnings).toHaveTextContent('Data quality: Partial timestamps, Recent activity incomplete');
-    expect(warnings).toHaveTextContent('Provider: degraded provider');
+    expect(warnings).toHaveTextContent('Provider: Recent activity incomplete');
     expect(warnings.textContent?.match(/Partial timestamps/g)?.length).toBe(1);
+  });
+
+  it('uses only approved warning phrases in detail copy', () => {
+    render(<LocalScreen pastedText="" analyzeState={buildState()} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
+    const warningsCopy = screen.getByTestId('detail-warnings').textContent ?? '';
+    const approved = [
+      'Partial timestamps',
+      'Recent activity incomplete',
+      'Derived from summary only',
+      'Summary unavailable',
+      'Pilot lookup incomplete',
+      'Pilot profile partial',
+    ];
+
+    expect(approved.some((label) => warningsCopy.includes(label))).toBe(true);
+    expect(warningsCopy).not.toContain('provider says detail invalid');
+    expect(warningsCopy).not.toContain('degraded provider');
   });
 });

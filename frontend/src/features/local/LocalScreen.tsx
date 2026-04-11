@@ -255,7 +255,14 @@ export function LocalScreen({
   const showDesktopGrid = !rightCollapsed;
 
   return (
-    <section className="local-screen" data-testid="local-screen" tabIndex={0} onKeyDown={onKeyDown} aria-label="Local intel workspace">
+    <section
+      className="local-screen"
+      data-testid="local-screen"
+      data-density={compactMode ? 'compact' : 'comfortable'}
+      tabIndex={0}
+      onKeyDown={onKeyDown}
+      aria-label="Local intel workspace"
+    >
       <main className="local-center-panel" data-testid="local-center-panel" data-roster-collapsed={rosterOpen ? 'false' : 'true'}>
         <div className="local-center-controls" data-testid="local-center-controls">
           <button type="button" onClick={triggerAnalyze} disabled={analyzeState.status === 'loading'}>Analyze</button>
@@ -352,9 +359,7 @@ export function LocalScreen({
 
       <footer className="local-bottom-strip" data-testid="local-bottom-strip">
         <details data-testid="diagnostics-expander">
-          <summary>
-            Diagnostics · global warnings: {globalWarnings.length} · errors: {diagnostics?.severityCounts.error ?? 0} · warns: {diagnostics?.severityCounts.warn ?? 0}
-          </summary>
+          <summary>Diagnostics · global warnings: {globalWarnings.length} · errors: {diagnostics?.severityCounts.error ?? 0} · warns: {diagnostics?.severityCounts.warn ?? 0}</summary>
           <p data-testid="diagnostic-partial-timestamps-count">Partial timestamps: {partialKillmailTimestampCount}</p>
           <ul data-testid="bottom-strip-warnings">
             {aggregateGlobalWarnings.length
