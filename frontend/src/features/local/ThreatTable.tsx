@@ -1,3 +1,4 @@
+import { buildThreatTableRow, type ThreatTableRowView as RenderedThreatTableRowView } from './ThreatTableRow';
 import type { ThreatRowView, ThreatTableColumn, ThreatTableOptions } from './types';
 
 export interface ThreatTableHeader {
@@ -5,6 +6,8 @@ export interface ThreatTableHeader {
   sortable: boolean;
   direction: 'asc' | 'desc' | null;
   visible: boolean;
+  align: 'left' | 'right';
+  className: string;
 }
 
 export interface ThreatTableRowView {
@@ -12,6 +15,7 @@ export interface ThreatTableRowView {
   selected: boolean;
   compact: boolean;
   row: ThreatRowView;
+  rendered: RenderedThreatTableRowView;
 }
 
 export interface ThreatTableView {
@@ -21,6 +25,8 @@ export interface ThreatTableView {
   filterText: string;
   headers: ThreatTableHeader[];
   rows: ThreatTableRowView[];
+  scrollContainerClassName: string;
+  bodyClassName: string;
 }
 
 const dateColumns: ThreatTableColumn[] = ['lastKill', 'lastLoss'];
@@ -66,12 +72,25 @@ export function buildThreatTable(
     compact: settingsCompact,
     rowCount: sorted.length,
     filterText: options.filterText ?? '',
+    scrollContainerClassName: 'threat-table-scroll threat-table-scroll--fixed-height',
+    bodyClassName: 'threat-table-body threat-table-body--virtualization-ready',
     headers: allColumns.map((column) => ({
       column,
       sortable: sortableColumns.has(column),
       direction: column === sortBy ? direction : null,
       visible: options.visibleColumns?.[column] ?? true,
+      align: numericColumns.includes(column) ? 'right' : 'left',
+      className: `threat-table-header ${numericColumns.includes(column) ? 'text-right' : 'text-left'} sticky top-0`,
     })),
-    rows: sorted.map((row) => ({ id: row.id, selected: row.id === selectedRowId, compact: settingsCompact, row })),
+    rows: sorted.map((row) => {
+      const selected = row.id === selectedRowId;
+      return {
+        id: row.id,
+        selected,
+        compact: settingsCompact,
+        row,
+        rendered: buildThreatTableRow(row, selected, settingsCompact),
+      };
+    }),
   };
 }
