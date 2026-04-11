@@ -13,6 +13,22 @@ function formatActivity(lastKill: string | null, lastLoss: string | null): strin
   return `Last kill: ${lastKill ?? '—'} · Last loss: ${lastLoss ?? '—'}`;
 }
 
+
+function dedupeAndGroupDetailWarnings(warnings: NonNullable<ThreatRowView['warnings']>): Array<{ group: string; labels: string[] }> {
+  const grouped = new Map<string, Set<string>>();
+  warnings
+    .filter((warning) => warning.displayTier === 'detail_panel')
+    .forEach((warning) => {
+      const group = `${warning.severity ?? 'info'}:${warning.category ?? 'provider'}`;
+      const label = warning.normalizedLabel ?? warning.message;
+      const bucket = grouped.get(group) ?? new Set<string>();
+      bucket.add(label);
+      grouped.set(group, bucket);
+    });
+
+  return Array.from(grouped.entries()).map(([group, labels]) => ({ group, labels: Array.from(labels) }));
+}
+
 function getExplanationQuality(row: ThreatRowView): 'High' | 'Medium' | 'Low' {
   if (row.reasonBreakdown.length >= 3 && row.confidence >= 0.75) return 'High';
   if (row.reasonBreakdown.length >= 2 && row.confidence >= 0.55) return 'Medium';
@@ -31,9 +47,8 @@ export function PilotDetailPanel({ row }: PilotDetailPanelProps) {
 
   const warningRows = row.warnings ?? [];
   const explanationQuality = getExplanationQuality(row);
-  const qualityMarkers = row.dataCompletenessMarkers ?? [];
-  const hasPartialTimestampMarker = qualityMarkers.includes('Partial timestamps');
-  const displayedWarnings = warningRows.filter((warning) => !(hasPartialTimestampMarker && /timestamp/i.test(warning.message)));
+  const qualityMarkers = Array.from(new Set(row.dataCompletenessMarkers ?? []));
+  const groupedWarnings = dedupeAndGroupDetailWarnings(warningRows);
 
   return (
     <section className="pilot-detail-panel" data-testid="pilot-detail-panel" aria-live="polite">
@@ -94,12 +109,10 @@ export function PilotDetailPanel({ row }: PilotDetailPanelProps) {
         <section>
           <h4>Data quality</h4>
           <ul data-testid="detail-data-quality">
-            {hasPartialTimestampMarker ? <li>Partial killmail timestamps detected; timing-based metrics may be understated.</li> : null}
-            {qualityMarkers.filter((marker) => marker !== 'Partial timestamps').map((marker) => (
+            {qualityMarkers.map((marker) => (
               <li key={marker}>{marker}</li>
             ))}
             {!qualityMarkers.length ? <li>No data quality warnings.</li> : null}
-            {!row.reasonBreakdown.length ? <li>Score likely derived from summary-level signals due to limited detail evidence.</li> : null}
           </ul>
         </section>
 
@@ -107,9 +120,9 @@ export function PilotDetailPanel({ row }: PilotDetailPanelProps) {
           <h4>Notes and pilot-specific warnings</h4>
           <p><strong>Notes:</strong> {row.notes || '—'}</p>
           <ul data-testid="detail-warnings">
-            {displayedWarnings.length ? displayedWarnings.map((warning, index) => (
-              <li key={`${warning.message}-${index}`} style={{ opacity: warning.severity === 'info' || warning.userVisible === false ? 0.7 : 1 }}>
-                {warning.message}
+            {groupedWarnings.length ? groupedWarnings.map((group) => (
+              <li key={group.group}>
+                {group.group} · {group.labels.join(', ')}
               </li>
             )) : <li>None.</li>}
           </ul>

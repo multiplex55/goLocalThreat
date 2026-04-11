@@ -42,6 +42,6 @@ describe('ThreatTableRow warning badge', () => {
     const row = buildThreatTableRow({ ...baseRow, warnings: [{ message: 'info', severity: 'info', userVisible: false }] }, false, false);
     expect(row.warningIcon).toBeNull();
     expect(row.warningIndicator).toBe('muted');
-    expect(row.warningBadgeText).toBe('Partial');
+    expect(row.warningBadgeText).toBe('•');
   });
 });

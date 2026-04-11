@@ -13,7 +13,7 @@ export interface ThreatTableRowView {
   rowClassName: string;
   warningIcon: '⚠️' | null;
   warningIndicator: 'active' | 'muted' | 'none';
-  warningBadgeText: '⚠' | 'Partial' | null;
+  warningBadgeText: '⚠' | '•' | null;
   threatBandClassName: string;
   score: ReturnType<typeof buildScoreBadge> & { badgeText: string };
   identity: {
@@ -114,7 +114,7 @@ export function buildThreatTableRow(row: ThreatRowView, selected: boolean, compa
   const activeWarnings = hasWarnings(row);
   const mutedWarnings = hasMutedWarnings(row);
   const warningIndicator: ThreatTableRowView['warningIndicator'] = activeWarnings ? 'active' : (mutedWarnings ? 'muted' : 'none');
-  const warningBadgeText: ThreatTableRowView['warningBadgeText'] = activeWarnings ? '⚠' : (mutedWarnings ? 'Partial' : null);
+  const warningBadgeText: ThreatTableRowView['warningBadgeText'] = activeWarnings ? '⚠' : (mutedWarnings ? '•' : null);
 
   return {
     id: row.id,

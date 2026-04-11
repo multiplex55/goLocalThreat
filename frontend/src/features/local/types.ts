@@ -36,7 +36,11 @@ export interface ThreatRowView {
   dataCompletenessMarkers: string[];
   warnings?: Array<{
     code?: string;
+    rawCode?: string;
     provider?: string;
+    category?: string;
+    normalizedLabel?: string;
+    displayTier?: 'status_strip' | 'detail_panel' | 'row_hint' | 'debug_only';
     severity?: 'info' | 'warn' | 'error';
     userVisible?: boolean;
     message: string;
