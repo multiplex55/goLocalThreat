@@ -1,16 +1,4 @@
 import { useEffect, useMemo, type CSSProperties, type RefObject } from 'react';
-import {
-  createColumnHelper,
-  flexRender,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
-  useReactTable,
-  type ColumnDef,
-  type SortingState,
-  type VisibilityState,
-} from '@tanstack/react-table';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import { buildThreatTableRow, type ThreatTableRowView as RenderedThreatTableRowView } from './ThreatTableRow';
 import type { ThreatRowView, ThreatTableColumn, ThreatTableOptions } from './types';
 
@@ -42,12 +30,48 @@ export interface ThreatTableView {
   bodyClassName: string;
 }
 
+type ColumnAlign = 'left' | 'right';
+type ColumnRenderKind = 'identity' | 'text' | 'number' | 'percent' | 'date' | 'tags' | 'notes' | 'threatBand';
+
+export interface ThreatTableColumnSchema {
+  key: ThreatTableColumn;
+  label: string;
+  width: number;
+  minWidth: number;
+  maxWidth: number;
+  align: ColumnAlign;
+  visibleByDefault: boolean;
+  truncate: boolean;
+  sortable: boolean;
+  renderKind: ColumnRenderKind;
+}
+
+export const THREAT_TABLE_COLUMN_SCHEMA: ThreatTableColumnSchema[] = [
+  { key: 'pilotName', label: 'Pilot', width: 220, minWidth: 180, maxWidth: 320, align: 'left', visibleByDefault: true, truncate: true, sortable: true, renderKind: 'identity' },
+  { key: 'corp', label: 'Corp', width: 180, minWidth: 140, maxWidth: 260, align: 'left', visibleByDefault: true, truncate: true, sortable: true, renderKind: 'text' },
+  { key: 'alliance', label: 'Alliance', width: 180, minWidth: 140, maxWidth: 260, align: 'left', visibleByDefault: false, truncate: true, sortable: true, renderKind: 'text' },
+  { key: 'score', label: 'Score', width: 108, minWidth: 88, maxWidth: 132, align: 'right', visibleByDefault: true, truncate: false, sortable: true, renderKind: 'number' },
+  { key: 'threatBand', label: 'Band', width: 112, minWidth: 92, maxWidth: 136, align: 'left', visibleByDefault: true, truncate: false, sortable: true, renderKind: 'threatBand' },
+  { key: 'kills', label: 'Kills', width: 84, minWidth: 72, maxWidth: 108, align: 'right', visibleByDefault: true, truncate: false, sortable: true, renderKind: 'number' },
+  { key: 'losses', label: 'Losses', width: 84, minWidth: 72, maxWidth: 108, align: 'right', visibleByDefault: true, truncate: false, sortable: true, renderKind: 'number' },
+  { key: 'dangerPercent', label: 'Danger %', width: 108, minWidth: 90, maxWidth: 132, align: 'right', visibleByDefault: false, truncate: false, sortable: true, renderKind: 'percent' },
+  { key: 'soloPercent', label: 'Solo %', width: 108, minWidth: 90, maxWidth: 132, align: 'right', visibleByDefault: false, truncate: false, sortable: true, renderKind: 'percent' },
+  { key: 'avgGangSize', label: 'Avg Gang', width: 108, minWidth: 90, maxWidth: 132, align: 'right', visibleByDefault: false, truncate: false, sortable: true, renderKind: 'number' },
+  { key: 'lastKill', label: 'Last Kill', width: 180, minWidth: 140, maxWidth: 240, align: 'left', visibleByDefault: true, truncate: true, sortable: true, renderKind: 'date' },
+  { key: 'lastLoss', label: 'Last Loss', width: 180, minWidth: 140, maxWidth: 240, align: 'left', visibleByDefault: false, truncate: true, sortable: true, renderKind: 'date' },
+  { key: 'mainShip', label: 'Ship', width: 160, minWidth: 120, maxWidth: 220, align: 'left', visibleByDefault: true, truncate: true, sortable: true, renderKind: 'text' },
+  { key: 'tags', label: 'Tags', width: 188, minWidth: 148, maxWidth: 260, align: 'left', visibleByDefault: true, truncate: true, sortable: false, renderKind: 'tags' },
+  { key: 'notes', label: 'Notes', width: 220, minWidth: 180, maxWidth: 320, align: 'left', visibleByDefault: false, truncate: true, sortable: false, renderKind: 'notes' },
+];
+
+const COLUMN_SCHEMA_BY_KEY = Object.fromEntries(THREAT_TABLE_COLUMN_SCHEMA.map((column) => [column.key, column])) as Record<ThreatTableColumn, ThreatTableColumnSchema>;
 const dateColumns: ThreatTableColumn[] = ['lastKill', 'lastLoss'];
-const numericColumns: ThreatTableColumn[] = ['score', 'kills', 'losses', 'dangerPercent', 'soloPercent', 'avgGangSize'];
-const sortableColumns = new Set<ThreatTableColumn>([
-  'pilotName', 'corp', 'alliance', 'score', 'threatBand', 'kills', 'losses', 'dangerPercent', 'soloPercent', 'avgGangSize', 'lastKill', 'lastLoss', 'mainShip',
-]);
-const allColumns: ThreatTableColumn[] = ['pilotName', 'corp', 'alliance', 'score', 'threatBand', 'kills', 'losses', 'dangerPercent', 'soloPercent', 'avgGangSize', 'lastKill', 'lastLoss', 'mainShip', 'tags', 'notes'];
+const numericColumns = new Set<ThreatTableColumn>(['score', 'kills', 'losses', 'dangerPercent', 'soloPercent', 'avgGangSize']);
+
+interface ActiveTableColumn extends ThreatTableColumnSchema {
+  visible: boolean;
+  pixelWidth: number;
+}
 
 function matchFilter(row: ThreatRowView, filterText: string): boolean {
   if (!filterText) return true;
@@ -56,13 +80,31 @@ function matchFilter(row: ThreatRowView, filterText: string): boolean {
 }
 
 function compareByColumn(a: ThreatRowView, b: ThreatRowView, column: ThreatTableColumn): number {
-  if (numericColumns.includes(column)) {
+  if (numericColumns.has(column)) {
     return Number(a[column]) - Number(b[column]);
   }
   if (dateColumns.includes(column)) {
     return Date.parse(String(a[column])) - Date.parse(String(b[column]));
   }
   return String(a[column]).localeCompare(String(b[column]));
+}
+
+function resolveColumnWidth(width: number, minWidth: number, maxWidth: number): number {
+  return Math.min(maxWidth, Math.max(minWidth, Math.round(width)));
+}
+
+export function computeThreatTableColumns(
+  visibleColumns: Partial<Record<ThreatTableColumn, boolean>>,
+): ActiveTableColumn[] {
+  return THREAT_TABLE_COLUMN_SCHEMA.map((column) => {
+    const visible = visibleColumns[column.key] ?? column.visibleByDefault;
+    const pixelWidth = resolveColumnWidth(column.width, column.minWidth, column.maxWidth);
+    return {
+      ...column,
+      visible,
+      pixelWidth,
+    };
+  });
 }
 
 export function buildThreatTable(
@@ -80,6 +122,8 @@ export function buildThreatTable(
     return direction === 'asc' ? cmp : -cmp;
   });
 
+  const columns = computeThreatTableColumns(options.visibleColumns ?? {});
+
   return {
     stickyHeader: true,
     compact: settingsCompact,
@@ -87,13 +131,13 @@ export function buildThreatTable(
     filterText: options.filterText ?? '',
     scrollContainerClassName: 'threat-table-scroll threat-table-scroll--fixed-height',
     bodyClassName: 'threat-table-body threat-table-body--virtualization-ready',
-    headers: allColumns.map((column) => ({
-      column,
-      sortable: sortableColumns.has(column),
-      direction: column === sortBy ? direction : null,
-      visible: options.visibleColumns?.[column] ?? true,
-      align: numericColumns.includes(column) ? 'right' : 'left',
-      className: `threat-table-header ${numericColumns.includes(column) ? 'text-right' : 'text-left'} sticky top-0`,
+    headers: columns.map((column) => ({
+      column: column.key,
+      sortable: column.sortable,
+      direction: column.key === sortBy ? direction : null,
+      visible: column.visible,
+      align: column.align,
+      className: `threat-table-header ${column.align === 'right' ? 'text-right' : 'text-left'} sticky top-0`,
     })),
     rows: sorted.map((row) => {
       const selected = row.id === selectedRowId;
@@ -108,30 +152,15 @@ export function buildThreatTable(
   };
 }
 
-const col = createColumnHelper<ThreatRowView>();
-
-const compactColumnDefs: ColumnDef<ThreatRowView, any>[] = [
-  col.accessor('pilotName', { header: 'pilotName', cell: (ctx) => ctx.getValue() }),
-  col.accessor('corp', { header: 'corp', cell: (ctx) => ctx.getValue() }),
-  col.accessor('alliance', { header: 'alliance', cell: (ctx) => ctx.getValue() }),
-  col.accessor('score', { header: 'score' }),
-  col.accessor('threatBand', { header: 'threatBand' }),
-  col.accessor('kills', { header: 'kills' }),
-  col.accessor('losses', { header: 'losses' }),
-  col.accessor('dangerPercent', { header: 'dangerPercent' }),
-  col.accessor('soloPercent', { header: 'soloPercent' }),
-  col.accessor('avgGangSize', { header: 'avgGangSize' }),
-  col.accessor('lastKill', { header: 'lastKill' }),
-  col.accessor('lastLoss', { header: 'lastLoss' }),
-  col.accessor('mainShip', { header: 'mainShip' }),
-  col.accessor('tags', { header: 'tags' }),
-  col.accessor('notes', { header: 'notes' }),
-];
-
 function normalizeValue(value: unknown): string {
   if (Array.isArray(value)) return value.join(', ');
   if (value === null || value === undefined || value === '') return '—';
   return String(value);
+}
+
+function getCellText(row: ThreatRowView, key: ThreatTableColumn): string {
+  if (key === 'tags') return normalizeValue(row.tags);
+  return normalizeValue(row[key]);
 }
 
 interface VirtualThreatTableProps {
@@ -165,107 +194,108 @@ export function VirtualThreatTable({
   scrollParentRef,
   onVisibleRowIdsChange,
 }: VirtualThreatTableProps) {
-  const sorting = useMemo<SortingState>(() => [{ id: sortBy, desc: sortDirection === 'desc' }], [sortBy, sortDirection]);
-  const columnVisibility = useMemo<VisibilityState>(() => ({ ...visibleColumns }), [visibleColumns]);
+  const filteredSortedRows = useMemo(() => {
+    const filtered = rows.filter((row) => matchFilter(row, filterText));
+    return [...filtered].sort((a, b) => {
+      const cmp = compareByColumn(a, b, sortBy);
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+  }, [filterText, rows, sortBy, sortDirection]);
 
-  const table = useReactTable({
-    data: rows,
-    columns: compactColumnDefs,
-    state: {
-      sorting,
-      globalFilter: filterText,
-      columnVisibility,
-    },
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    globalFilterFn: (row, _columnId, filterValue) => {
-      const query = String(filterValue ?? '').trim().toLowerCase();
-      if (!query) return true;
-      const value = `${row.original.pilotName} ${row.original.corp} ${row.original.alliance} ${row.original.tags.join(' ')}`.toLowerCase();
-      return value.includes(query);
-    },
-  });
+  const activeColumns = useMemo(() => computeThreatTableColumns(visibleColumns), [visibleColumns]);
+  const visibleColumnDefs = useMemo(() => activeColumns.filter((column) => column.visible), [activeColumns]);
+  const visibleColumnKeys = useMemo(() => visibleColumnDefs.map((column) => column.key), [visibleColumnDefs]);
+  const widthMap = useMemo(
+    () => Object.fromEntries(visibleColumnDefs.map((column) => [column.key, column.pixelWidth])) as Record<ThreatTableColumn, number>,
+    [visibleColumnDefs],
+  );
 
-  const bodyRows = table.getRowModel().rows;
+  const totalWidth = useMemo(() => visibleColumnDefs.reduce((sum, column) => sum + column.pixelWidth, 0), [visibleColumnDefs]);
+
+  const tableStyle = useMemo<CSSProperties>(() => ({ minWidth: `${totalWidth}px`, width: `${totalWidth}px` }), [totalWidth]);
+
   useEffect(() => {
-    onVisibleRowIdsChange?.(bodyRows.map((row) => row.original.id));
-  }, [bodyRows, onVisibleRowIdsChange]);
+    onVisibleRowIdsChange?.(filteredSortedRows.map((row) => row.id));
+  }, [filteredSortedRows, onVisibleRowIdsChange]);
 
-  const virtualizer = useVirtualizer({
-    count: bodyRows.length,
-    getScrollElement: () => scrollParentRef.current,
-    estimateSize: () => (compactMode ? 30 : 36),
-    overscan: 8,
-  });
-
-  const virtualItems = virtualizer.getVirtualItems();
-  const fallbackItems = bodyRows.map((_, index) => ({ index, start: index * (compactMode ? 30 : 36) }));
-  const activeItems = virtualItems.length ? virtualItems : fallbackItems;
-  const totalSize = virtualItems.length ? virtualizer.getTotalSize() : fallbackItems.length * (compactMode ? 30 : 36);
+  useEffect(() => {
+    const debugFlag = typeof window !== 'undefined' && (window as { __THREAT_TABLE_COLUMN_DEBUG__?: boolean }).__THREAT_TABLE_COLUMN_DEBUG__;
+    if (!debugFlag) return;
+    console.debug('[ThreatTable:columns]', {
+      visibleColumns: visibleColumnKeys,
+      widthMap,
+    });
+  }, [visibleColumnKeys, widthMap]);
 
   return (
     <div className="threat-table-shell" data-testid="threat-table-shell">
-      <table className="threat-table-head" aria-hidden="true">
-        <thead>
-          {table.getHeaderGroups().map((group) => (
-            <tr key={group.id}>
-              {group.headers.map((header) => (
-                <th key={header.id}>
-                  <button type="button" onClick={() => onSortChange(header.column.id as ThreatTableColumn)}>
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                    {header.column.id === sortBy ? (sortDirection === 'asc' ? ' (asc)' : ' (desc)') : ''}
+      <div className="local-center-table-scroll threat-table-scroll--fixed-height" data-testid="local-center-table-scroll" ref={scrollParentRef}>
+        <table data-testid="threat-table" aria-label="Threat rows" className="threat-table-grid" style={tableStyle}>
+          <colgroup>
+            {visibleColumnDefs.map((column) => (
+              <col key={column.key} style={{ width: `${column.pixelWidth}px`, minWidth: `${column.pixelWidth}px`, maxWidth: `${column.pixelWidth}px` }} />
+            ))}
+          </colgroup>
+          <thead>
+            <tr>
+              {visibleColumnDefs.map((column) => (
+                <th
+                  key={column.key}
+                  data-column-key={column.key}
+                  data-column-width={column.pixelWidth}
+                  className={column.align === 'right' ? 'text-right' : 'text-left'}
+                >
+                  <button type="button" onClick={() => onSortChange(column.key)} disabled={!column.sortable}>
+                    {column.label}
+                    {column.key === sortBy ? (sortDirection === 'asc' ? ' (asc)' : ' (desc)') : ''}
                   </button>
                 </th>
               ))}
             </tr>
-          ))}
-        </thead>
-      </table>
-
-      <div className="local-center-table-scroll" data-testid="local-center-table-scroll" ref={scrollParentRef}>
-        <table data-testid="threat-table" aria-label="Threat rows">
-          <tbody style={{ display: 'grid', height: `${totalSize}px`, position: 'relative' }}>
-            {activeItems.map((virtualRow) => {
-              const row = bodyRows[virtualRow.index];
-              if (!row) return null;
-              const rendered = buildThreatTableRow(row.original, row.original.id === selectedRowId, compactMode);
-              const rowStyle: CSSProperties = {
-                display: 'flex',
-                position: 'absolute',
-                transform: `translateY(${virtualRow.start}px)`,
-                width: '100%',
-              };
-
+          </thead>
+          <tbody>
+            {filteredSortedRows.map((row) => {
+              const rendered = buildThreatTableRow(row, row.id === selectedRowId, compactMode);
               return (
                 <tr
                   key={row.id}
-                  style={rowStyle}
                   className={rendered.rowClassName}
-                  data-selected={row.original.id === selectedRowId || undefined}
-                  data-band={row.original.threatBand}
+                  data-selected={row.id === selectedRowId || undefined}
+                  data-band={row.threatBand}
                   tabIndex={0}
-                  onClick={() => onRowSelect(row.original.id)}
-                  onDoubleClick={() => onRowTogglePin(row.original.id)}
+                  onClick={() => onRowSelect(row.id)}
+                  onDoubleClick={() => onRowTogglePin(row.id)}
                 >
-                  {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id}>
-                      {cell.column.id === 'pilotName' ? (
-                        <>
-                          {isPinned(row.original.id) ? '📌 ' : ''}
-                          {rendered.warningBadgeText ? (
-                            <span
-                              title={row.original.warnings?.filter((warning) => warning.displayTier === 'row_hint').map((warning) => warning.normalizedLabel ?? warning.message).slice(0, 2).join(', ') || 'Row warning'}
-                              aria-label="row warnings"
-                            >
-                              {rendered.warningBadgeText}{' '}
-                            </span>
-                          ) : null}
-                          {normalizeValue(cell.getValue())}
-                        </>
-                      ) : normalizeValue(cell.getValue())}
-                    </td>
-                  ))}
+                  {visibleColumnDefs.map((column) => {
+                    const cellValue = getCellText(row, column.key);
+                    return (
+                      <td
+                        key={`${row.id}:${column.key}`}
+                        data-column-key={column.key}
+                        data-column-width={column.pixelWidth}
+                        className={[
+                          column.align === 'right' ? 'text-right' : 'text-left',
+                          column.truncate ? 'threat-table-cell--truncate' : '',
+                        ].filter(Boolean).join(' ')}
+                        title={column.truncate ? cellValue : undefined}
+                      >
+                        {column.key === 'pilotName' ? (
+                          <>
+                            {isPinned(row.id) ? '📌 ' : ''}
+                            {rendered.warningBadgeText ? (
+                              <span
+                                title={row.warnings?.filter((warning) => warning.displayTier === 'row_hint').map((warning) => warning.normalizedLabel ?? warning.message).slice(0, 2).join(', ') || 'Row warning'}
+                                aria-label="row warnings"
+                              >
+                                {rendered.warningBadgeText}{' '}
+                              </span>
+                            ) : null}
+                            {cellValue}
+                          </>
+                        ) : cellValue}
+                      </td>
+                    );
+                  })}
                 </tr>
               );
             })}
@@ -274,4 +304,19 @@ export function VirtualThreatTable({
       </div>
     </div>
   );
+}
+
+export function getThreatTableVisibleColumnKeys(visibleColumns: Partial<Record<ThreatTableColumn, boolean>>): ThreatTableColumn[] {
+  return computeThreatTableColumns(visibleColumns).filter((column) => column.visible).map((column) => column.key);
+}
+
+export function getThreatTableWidthMap(visibleColumns: Partial<Record<ThreatTableColumn, boolean>>): Record<ThreatTableColumn, number> {
+  return computeThreatTableColumns(visibleColumns).reduce((map, column) => {
+    map[column.key] = column.pixelWidth;
+    return map;
+  }, {} as Record<ThreatTableColumn, number>);
+}
+
+export function getThreatTableColumnSchema(column: ThreatTableColumn): ThreatTableColumnSchema {
+  return COLUMN_SCHEMA_BY_KEY[column];
 }
