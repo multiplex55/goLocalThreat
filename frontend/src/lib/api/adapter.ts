@@ -1,6 +1,7 @@
 import * as AppService from '../../../wailsjs/go/app/AppService';
 import type { SettingsViewModel } from '../../features/settings/types';
 import type { AnalysisSessionView, ParseWarningView, PilotThreatView, ThreatBand } from '../../types/analysis';
+import { resolveWarningPresentation } from './warningRouting';
 
 function toThreatBand(band: string | undefined): ThreatBand {
   if (band === 'critical' || band === 'high' || band === 'medium' || band === 'low') return band;
@@ -42,15 +43,22 @@ function pickPreferredThreatBand(primary: string | undefined, secondary: string 
 }
 
 function toWarningView(warning: AppService.ParseWarningDTO): ParseWarningView {
+  const scopedToPilot = typeof warning.characterId === 'number';
+  const category = warning.category ?? 'provider';
+  const presentation = resolveWarningPresentation(warning.code, category, scopedToPilot);
+
   return {
     provider: warning.provider,
     code: warning.code,
+    rawCode: warning.code,
     message: warning.message,
+    normalizedLabel: presentation.normalizedLabel,
     characterId: warning.characterId,
     characterName: warning.characterName,
     severity: warning.severity ?? 'info',
     userVisible: warning.userVisible ?? true,
-    category: warning.category ?? 'provider',
+    category,
+    displayTier: presentation.displayTier,
   };
 }
 
@@ -147,7 +155,7 @@ export function toAnalysisSessionView(dto: AppService.AnalysisSessionDTO): Analy
   const candidateNamesCount = dto.source.candidateNames.length;
   const resolvedCount = dto.pilots.length;
   const warnings: ParseWarningView[] = dto.warnings.map(toWarningView);
-  const globalWarnings = warnings.filter((warning) => !warning.characterId);
+  const globalWarnings = warnings.filter((warning) => !warning.characterId && warning.displayTier === 'status_strip');
   const warningsByPilotId: Record<string, ParseWarningView[]> = {};
   warnings.forEach((warning) => {
     if (!warning.characterId) return;

@@ -1,12 +1,15 @@
 export interface ParseWarningView {
   provider?: string;
   code: string;
+  rawCode?: string;
   message: string;
+  normalizedLabel?: string;
   characterId?: number;
   characterName?: string;
   severity: 'info' | 'warn' | 'error';
   userVisible: boolean;
   category: string;
+  displayTier?: 'status_strip' | 'detail_panel' | 'row_hint' | 'debug_only';
 }
 
 export interface ParseSummaryView {

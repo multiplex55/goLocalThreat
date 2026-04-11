@@ -5,6 +5,7 @@ import type { AnalyzeState } from './analyzeState';
 import type { ThreatRowView, ThreatTableColumn } from './types';
 import { toThreatRowView } from './threatRowMapper';
 import { dehydrateWorkspacePrefs, hydrateWorkspacePrefs } from './workspacePrefs';
+import { dedupeWarnings, groupWarningsBySeverityAndCategory } from '../../lib/api/warningRouting';
 
 export interface LocalScreenProps {
   pastedText: string;
@@ -93,6 +94,10 @@ export function LocalScreen({
   const diagnostics = analyzeState.data?.diagnostics;
   const unresolvedNames = diagnostics?.unresolvedNames ?? [];
   const globalWarnings = diagnostics?.globalWarnings ?? [];
+  const groupedGlobalWarnings = useMemo(() => {
+    const deduped = dedupeWarnings(globalWarnings);
+    return groupWarningsBySeverityAndCategory(deduped);
+  }, [globalWarnings]);
   const partialKillmailTimestampCount = diagnostics?.warningCodeCounts?.DETAIL_TIME_INVALID ?? 0;
 
   const rightCollapsed = useMediaQuery('(max-width: 1439px)');
@@ -390,8 +395,15 @@ export function LocalScreen({
             Diagnostics · global warnings: {globalWarnings.length} · errors: {diagnostics?.severityCounts.error ?? 0} · warns: {diagnostics?.severityCounts.warn ?? 0}
           </summary>
           <p data-testid="diagnostic-partial-timestamps-count">
-            Partial killmail timestamps: {partialKillmailTimestampCount}
+            Partial timestamps: {partialKillmailTimestampCount}
           </p>
+          <ul data-testid="bottom-strip-warnings">
+            {Object.entries(groupedGlobalWarnings).length ? Object.entries(groupedGlobalWarnings).map(([group, warningItems]) => (
+              <li key={group}>
+                {group} · {warningItems.map((warning) => warning.normalizedLabel ?? warning.message).join(', ')}
+              </li>
+            )) : <li>No transport warnings.</li>}
+          </ul>
           <p>
             Providers:&nbsp;
             {Object.entries(diagnostics?.providerCounts ?? {})

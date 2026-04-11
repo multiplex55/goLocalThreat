@@ -11,10 +11,12 @@ export function toThreatRowView(pilot: PilotThreatView, status: ThreatRowView['s
     label: reason,
     score: Math.max(5, 30 - (reasonIndex * 5)),
   }));
-  const hasPartialTimestampWarning = pilot.warnings.some((warning) => warning.code === 'DETAIL_TIME_INVALID');
+  const hasPartialTimestampWarning = pilot.warnings.some((warning) => warning.normalizedLabel === 'Partial timestamps');
+  const hasRecentActivityIncomplete = pilot.warnings.some((warning) => warning.normalizedLabel === 'Recent activity incomplete');
   const dataCompletenessMarkers = [
     ...(hasPartialTimestampWarning ? ['Partial timestamps'] : []),
-    ...(!pilot.reasons.length ? ['Derived from summary signals'] : []),
+    ...(hasRecentActivityIncomplete ? ['Recent activity incomplete'] : []),
+    ...(!pilot.reasons.length ? ['Derived from summary only'] : []),
   ];
 
   return {
@@ -52,10 +54,14 @@ export function toThreatRowView(pilot: PilotThreatView, status: ThreatRowView['s
     dataCompletenessMarkers,
     warnings: pilot.warnings.map((warning) => ({
       code: warning.code,
+      rawCode: warning.rawCode,
       provider: warning.provider,
+      category: warning.category,
+      normalizedLabel: warning.normalizedLabel,
+      displayTier: warning.displayTier,
       severity: warning.severity,
       userVisible: warning.userVisible,
-      message: warning.message,
+      message: warning.normalizedLabel ?? warning.message,
     })),
   };
 }
