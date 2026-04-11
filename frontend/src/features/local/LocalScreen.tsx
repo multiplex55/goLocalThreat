@@ -25,7 +25,6 @@ function toThreatRows(analyzeState: AnalyzeState): ThreatRowView[] {
   });
 }
 
-
 function nextSelectionIndex(currentIndex: number, rowCount: number, key: 'ArrowUp' | 'ArrowDown'): number {
   if (rowCount === 0) return -1;
   if (currentIndex < 0) return 0;
@@ -37,6 +36,21 @@ function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const tagName = target.tagName.toLowerCase();
   return tagName === 'textarea' || tagName === 'input' || target.isContentEditable;
+}
+
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(query).matches);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const media = window.matchMedia(query);
+    const onChange = (event: MediaQueryListEvent) => setMatches(event.matches);
+    setMatches(media.matches);
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+  }, [query]);
+
+  return matches;
 }
 
 export function LocalScreen({
@@ -55,6 +69,20 @@ export function LocalScreen({
   const diagnostics = analyzeState.data?.diagnostics;
   const unresolvedNames = diagnostics?.unresolvedNames ?? [];
   const globalWarnings = diagnostics?.globalWarnings ?? [];
+
+  const rightCollapsed = useMediaQuery('(max-width: 1439px)');
+  const leftCollapsed = useMediaQuery('(max-width: 1169px)');
+  const [activePane, setActivePane] = useState<'center' | 'left' | 'right'>('center');
+
+  useEffect(() => {
+    if (!rightCollapsed) {
+      setActivePane('center');
+      return;
+    }
+    if (leftCollapsed && activePane === 'left') {
+      setActivePane('center');
+    }
+  }, [activePane, leftCollapsed, rightCollapsed]);
 
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<ThreatTableColumn>(workspacePrefs.table.sortBy);
@@ -185,101 +213,126 @@ export function LocalScreen({
     return <div data-testid="local-screen-disabled">Local intel v2 layout is disabled.</div>;
   }
 
+  const showDesktopGrid = !rightCollapsed;
+
   return (
-    <section data-testid="local-screen" tabIndex={0} onKeyDown={onKeyDown} aria-label="Local intel workspace">
-      <header data-testid="local-top-toolbar">
+    <section className="local-screen" data-testid="local-screen" tabIndex={0} onKeyDown={onKeyDown} aria-label="Local intel workspace">
+      <header className="local-top-toolbar" data-testid="local-top-toolbar" aria-label="Top action and tabs bar">
         <button type="button" onClick={onAnalyze} disabled={analyzeState.status === 'loading'}>Analyze</button>
         <button type="button" onClick={refreshSelected}>Refresh Selected</button>
         <button type="button" onClick={() => void copyName(selectedRow?.pilotName ?? null)} disabled={!selectedRow}>Copy Selected</button>
         <button type="button" onClick={() => void copyAllNames()} disabled={!rows.length}>Copy All</button>
         <button type="button" onClick={onSettings}>Settings</button>
+        {rightCollapsed ? (
+          <nav aria-label="Pane tabs" className="local-pane-tabs" data-testid="local-pane-tabs">
+            {!leftCollapsed && <button type="button" aria-pressed={activePane === 'left'} onClick={() => setActivePane('left')}>Roster</button>}
+            <button type="button" aria-pressed={activePane === 'center'} onClick={() => setActivePane('center')}>Table</button>
+            <button type="button" aria-pressed={activePane === 'right'} onClick={() => setActivePane('right')}>Details</button>
+          </nav>
+        ) : null}
         <span role="status" aria-live="polite" data-testid="action-feedback">{actionMessage}</span>
       </header>
 
-      <div data-testid="local-layout-grid" style={{ gridTemplateColumns: `${panelSizes.left}fr ${panelSizes.center}fr ${panelSizes.right}fr` }}>
-        <aside data-testid="local-left-panel">
-          <label htmlFor="paste-input">Pasted roster</label>
-          <textarea ref={pasteInputRef} id="paste-input" data-testid="paste-textbox" value={pastedText} rows={8} onChange={(event) => onPasteChange(event.target.value)} />
-          <p data-testid="parse-summary">Parsed {diagnostics?.candidateNamesCount ?? 0} candidates · resolved {diagnostics?.resolvedCount ?? 0}</p>
-        </aside>
+      <div className="local-layout-grid" data-testid="local-layout-grid" data-layout-mode={showDesktopGrid ? 'desktop' : 'stacked'}>
+        {(!leftCollapsed || showDesktopGrid || activePane === 'left') ? (
+          <aside
+            className="local-left-panel"
+            data-testid="local-left-panel"
+            aria-label="Left roster input pane"
+            hidden={!showDesktopGrid && activePane !== 'left'}
+          >
+            <label htmlFor="paste-input">Pasted roster</label>
+            <textarea ref={pasteInputRef} id="paste-input" data-testid="paste-textbox" value={pastedText} rows={8} onChange={(event) => onPasteChange(event.target.value)} />
+            <p data-testid="parse-summary">Parsed {diagnostics?.candidateNamesCount ?? 0} candidates · resolved {diagnostics?.resolvedCount ?? 0}</p>
+          </aside>
+        ) : null}
 
-        <main data-testid="local-center-panel">
+        <main className="local-center-panel" data-testid="local-center-panel" aria-label="Center threat table pane" hidden={!showDesktopGrid && activePane !== 'center'}>
           <h3>Threat table</h3>
           <input data-testid="threat-filter" value={filterText} onChange={(e) => setFilterText(e.target.value)} placeholder="Filter pilot/corp/alliance/tags" />
           <button type="button" data-testid="density-toggle" onClick={() => setCompactMode((v) => !v)}>{compactMode ? 'Comfortable' : 'Compact'}</button>
           <div data-testid="column-toggles">{table.headers.map((h) => (
             <label key={h.column}><input type="checkbox" checked={visibleColumns[h.column]} onChange={() => setVisibleColumns((curr) => ({ ...curr, [h.column]: !curr[h.column] }))} />{h.column}</label>
           ))}</div>
-          <table data-testid="threat-table" aria-label="Threat rows">
-            <thead>
-              <tr>
-                {table.headers.filter((h) => h.visible).map((h) => (
-                  <th key={h.column} style={{ width: columnWidths[h.column] ? `${columnWidths[h.column]}px` : undefined }}>
-                    <button type="button" onClick={() => {
-                      if (sortBy === h.column) {
-                        setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
-                      } else {
-                        setSortBy(h.column);
-                        setSortDirection(h.column === 'pilotName' || h.column === 'corp' || h.column === 'alliance' ? 'asc' : 'desc');
-                      }
-                    }}>{h.column}{h.direction ? ` (${h.direction})` : ''}</button>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {table.rows.map((tableRow) => (
-                <tr
-                  key={tableRow.id}
-                  data-selected={tableRow.selected || undefined}
-                  onClick={() => setSelectedRowId(tableRow.id)}
-                  onDoubleClick={() => setPinnedRowIds((current) => {
-                    const next = new Set(current);
-                    if (next.has(tableRow.id)) {
-                      next.delete(tableRow.id);
-                    } else {
-                      next.add(tableRow.id);
-                    }
-                    return next;
-                  })}
-                >
-                  {table.headers.filter((h) => h.visible).map((h) => {
-                    const value = tableRow.row[h.column];
-                    const rendered = Array.isArray(value) ? value.join(', ') : (value ?? '—');
-                    return <td key={h.column}>{h.column === 'pilotName' && pinnedRowIds.has(tableRow.id) ? '📌 ' : ''}{String(rendered)}</td>;
-                  })}
+          <div className="local-center-table-scroll">
+            <table data-testid="threat-table" aria-label="Threat rows">
+              <thead>
+                <tr>
+                  {table.headers.filter((h) => h.visible).map((h) => (
+                    <th key={h.column} style={{ width: columnWidths[h.column] ? `${columnWidths[h.column]}px` : undefined }}>
+                      <button type="button" onClick={() => {
+                        if (sortBy === h.column) {
+                          setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+                        } else {
+                          setSortBy(h.column);
+                          setSortDirection(h.column === 'pilotName' || h.column === 'corp' || h.column === 'alliance' ? 'asc' : 'desc');
+                        }
+                      }}>{h.column}{h.direction ? ` (${h.direction})` : ''}</button>
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {table.rows.map((tableRow) => (
+                  <tr
+                    key={tableRow.id}
+                    data-selected={tableRow.selected || undefined}
+                    onClick={() => setSelectedRowId(tableRow.id)}
+                    onDoubleClick={() => setPinnedRowIds((current) => {
+                      const next = new Set(current);
+                      if (next.has(tableRow.id)) {
+                        next.delete(tableRow.id);
+                      } else {
+                        next.add(tableRow.id);
+                      }
+                      return next;
+                    })}
+                  >
+                    {table.headers.filter((h) => h.visible).map((h) => {
+                      const value = tableRow.row[h.column];
+                      const rendered = Array.isArray(value) ? value.join(', ') : (value ?? '—');
+                      return <td key={h.column}>{h.column === 'pilotName' && pinnedRowIds.has(tableRow.id) ? '📌 ' : ''}{String(rendered)}</td>;
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </main>
 
-        <aside data-testid="local-right-panel">
-          <h3 data-testid="detail-title">{detail.title}</h3>
-          <div data-testid="detail-pane">
-            <div data-testid="detail-semantic-badges">
-              {detail.semanticBadges.map((badge) => (
-                <span key={badge.label} data-tone={badge.tone}>{badge.label}</span>
-              ))}
-            </div>
-            {detail.sections.map((section) => (
-              <p key={section.label}><strong>{section.label}:</strong> {section.value}</p>
-            ))}
-            <div data-testid="detail-warnings">
-              <strong>Warnings</strong>
-              <ul>
-                {detail.warnings.map((warning, index) => (
-                  <li key={`${warning.text}-${index}`} style={{ opacity: warning.muted ? 0.6 : 1 }}>
-                    {warning.text}
-                  </li>
+        {showDesktopGrid || activePane === 'right' ? (
+          <aside
+            className="local-right-panel"
+            data-testid="local-right-panel"
+            aria-label="Right detail and warnings pane"
+            hidden={!showDesktopGrid && activePane !== 'right'}
+          >
+            <h3 data-testid="detail-title">{detail.title}</h3>
+            <div data-testid="detail-pane">
+              <div data-testid="detail-semantic-badges">
+                {detail.semanticBadges.map((badge) => (
+                  <span key={badge.label} data-tone={badge.tone}>{badge.label}</span>
                 ))}
-              </ul>
+              </div>
+              {detail.sections.map((section) => (
+                <p key={section.label}><strong>{section.label}:</strong> {section.value}</p>
+              ))}
+              <div data-testid="detail-warnings">
+                <strong>Warnings</strong>
+                <ul>
+                  {detail.warnings.map((warning, index) => (
+                    <li key={`${warning.text}-${index}`} style={{ opacity: warning.muted ? 0.6 : 1 }}>
+                      {warning.text}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
-          </div>
-        </aside>
+          </aside>
+        ) : null}
       </div>
 
-      <footer data-testid="local-bottom-strip">
+      <footer className="local-bottom-strip" data-testid="local-bottom-strip" aria-label="Bottom diagnostics strip">
         <details data-testid="diagnostics-expander">
           <summary>
             Diagnostics · global warnings: {globalWarnings.length} · errors: {diagnostics?.severityCounts.error ?? 0} · warns: {diagnostics?.severityCounts.warn ?? 0}
