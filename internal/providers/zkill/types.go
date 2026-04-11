@@ -10,12 +10,15 @@ import (
 const providerName = "zkill"
 
 type SummaryRow struct {
-	CharacterID   int64
-	RecentKills   int
-	RecentLosses  int
-	DangerRatio   float64
-	LastActivity  time.Time
-	HasDetailData bool
+	CharacterID       int64
+	RecentKills       int
+	RecentKillsKnown  bool
+	RecentLosses      int
+	RecentLossesKnown bool
+	DangerRatio       float64
+	DangerRatioKnown  bool
+	LastActivity      time.Time
+	HasDetailData     bool
 }
 
 func (s SummaryRow) ToThreatBreakdown() domain.ThreatBreakdown {
@@ -26,9 +29,9 @@ func (s SummaryRow) ToThreatBreakdown() domain.ThreatBreakdown {
 	}
 	input := scoring.EnrichedPilotInput{
 		SnapshotAt:     snapshot,
-		RecentKills:    scoring.OptionalFloat{Value: float64(s.RecentKills), Known: true},
-		RecentLosses:   scoring.OptionalFloat{Value: float64(s.RecentLosses), Known: true},
-		DangerRatio:    scoring.OptionalFloat{Value: s.DangerRatio, Known: true},
+		RecentKills:    scoring.OptionalFloat{Value: float64(s.RecentKills), Known: s.RecentKillsKnown},
+		RecentLosses:   scoring.OptionalFloat{Value: float64(s.RecentLosses), Known: s.RecentLossesKnown},
+		DangerRatio:    scoring.OptionalFloat{Value: s.DangerRatio, Known: s.DangerRatioKnown},
 		LastActivityAt: scoring.OptionalTime{Value: s.LastActivity, Known: !s.LastActivity.IsZero()},
 	}
 	res := engine.Score(input)
@@ -44,16 +47,19 @@ func (s SummaryRow) ToThreatBreakdown() domain.ThreatBreakdown {
 		})
 	}
 	return domain.ThreatBreakdown{
-		Total:         res.ThreatScore,
-		ThreatScore:   res.ThreatScore,
-		ThreatBand:    res.ThreatBand,
-		ThreatReasons: res.ThreatReasons,
-		Breakdown:     breakdown,
-		Confidence:    res.Confidence,
-		RecentKills:   s.RecentKills,
-		RecentLosses:  s.RecentLosses,
-		DangerPercent: s.DangerRatio * 100,
-		Notes:         "summary derived",
+		Total:            res.ThreatScore,
+		ThreatScore:      res.ThreatScore,
+		RawThreatScore:   res.RawThreatScore,
+		ThreatBand:       res.ThreatBand,
+		AssessmentState:  res.AssessmentState,
+		ThreatReasons:    res.ThreatReasons,
+		Breakdown:        breakdown,
+		Confidence:       res.Confidence,
+		DataCompleteness: res.DataCompleteness,
+		RecentKills:      s.RecentKills,
+		RecentLosses:     s.RecentLosses,
+		DangerPercent:    s.DangerRatio * 100,
+		Notes:            "summary derived",
 	}
 }
 
