@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { AnalyzeState } from '../analyzeState';
 import { LocalScreen } from '../LocalScreen';
 import type { AnalysisSessionView, ParseWarningView, PilotThreatView } from '../../../types/analysis';
@@ -188,5 +188,57 @@ describe('LocalScreen integration', () => {
     expect(screen.getByText(/pilots: 0/i)).toBeInTheDocument();
     expect(screen.queryByText(/^0%$/)).not.toBeInTheDocument();
     expect(screen.queryByText('Unknown ship')).not.toBeInTheDocument();
+  });
+
+  it('supports keyboard row selection and enter refresh selected', () => {
+    const onRefreshSelected = vi.fn();
+    const data = buildAnalysisData({
+      pilots: [
+        buildPilot({ id: 'pilot-a', identity: { ...buildPilot().identity, characterName: 'Alpha Pilot' } }),
+        buildPilot({ id: 'pilot-b', identity: { ...buildPilot().identity, characterId: 2, characterName: 'Bravo Pilot' }, score: 72 }),
+      ],
+    });
+
+    render(<LocalScreen pastedText="Alpha\nBravo" analyzeState={buildState(data)} onPasteChange={() => {}} onAnalyze={() => {}} onRefreshSelected={onRefreshSelected} useLocalIntelV2Layout />);
+    const workspace = screen.getByTestId('local-screen');
+    workspace.focus();
+
+    fireEvent.keyDown(workspace, { key: 'ArrowDown' });
+    fireEvent.keyDown(workspace, { key: 'Enter' });
+
+    expect(onRefreshSelected).toHaveBeenCalledWith('pilot-b');
+  });
+
+  it('keeps warning tiers visible without spamming all rows and defaults to compact mode', () => {
+    const partialWarning = buildWarning({ code: 'DETAIL_TIME_INVALID', message: 'Partial timestamps', normalizedLabel: 'Partial timestamps', displayTier: 'row_hint' as const });
+    const hiddenWarning = buildWarning({ code: 'DEBUG_ONLY', message: 'Debug warning', normalizedLabel: 'Debug warning', displayTier: 'debug_only' as const });
+    const data = buildAnalysisData({
+      pilots: [
+        buildPilot({ id: 'pilot-1', identity: { ...buildPilot().identity, characterName: 'Warned Pilot' }, warnings: [partialWarning] }),
+        buildPilot({ id: 'pilot-2', identity: { ...buildPilot().identity, characterId: 2, characterName: 'Quiet Pilot' }, warnings: [hiddenWarning] }),
+      ],
+    });
+
+    render(<LocalScreen pastedText="Warned\nQuiet" analyzeState={buildState(data)} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
+    expect(screen.getByTestId('density-toggle')).toHaveTextContent('Comfortable');
+    expect(screen.getByText((_, element) => element?.textContent === '⚠ Warned Pilot')).toBeInTheDocument();
+    expect(screen.getByLabelText('row warnings')).toHaveAttribute('title', 'Partial timestamps');
+    expect(screen.queryByText((_, element) => element?.textContent === '⚠ Quiet Pilot')).not.toBeInTheDocument();
+  });
+
+  it('acceptance: avoids zero timestamps and keeps varied non-low score distribution', () => {
+    const data = buildAnalysisData({
+      pilots: [
+        buildPilot({ id: 'pilot-high', identity: { ...buildPilot().identity, characterName: 'High Pilot' }, score: 88, band: 'high', kills: 11, losses: 2, lastKill: '2026-04-10T12:00:00Z' }),
+        buildPilot({ id: 'pilot-med', identity: { ...buildPilot().identity, characterId: 3, characterName: 'Medium Pilot' }, score: 55, band: 'medium', kills: 3, losses: 1, lastKill: '' }),
+      ],
+    });
+
+    render(<LocalScreen pastedText="High\nMedium" analyzeState={buildState(data)} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
+
+    expect(screen.queryByText(/0001-01-01/)).not.toBeInTheDocument();
+    expect(screen.getByText('11')).toBeInTheDocument();
+    expect(screen.getByText('HIGH 88')).toBeInTheDocument();
+    expect(screen.getByText('MED 55')).toBeInTheDocument();
   });
 });

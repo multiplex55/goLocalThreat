@@ -39,6 +39,14 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return tagName === 'textarea' || tagName === 'input' || target.isContentEditable;
 }
 
+function isRecentActivity(lastSeen: string | null, reference = new Date()): boolean {
+  if (!lastSeen) return false;
+  const parsed = Date.parse(lastSeen);
+  if (Number.isNaN(parsed)) return false;
+  const ageMs = reference.getTime() - parsed;
+  return ageMs >= 0 && ageMs <= 14 * 24 * 60 * 60 * 1000;
+}
+
 function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(query).matches);
 
@@ -81,7 +89,8 @@ export function LocalScreen({
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<ThreatTableColumn>(workspacePrefs.table.sortBy);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(workspacePrefs.table.sortDirection);
-  const [filterText, setFilterText] = useState('');
+  const [filterText, setFilterText] = useState(workspacePrefs.table.filterText);
+  const [quickFilters, setQuickFilters] = useState(workspacePrefs.table.quickFilters);
   const [compactMode, setCompactMode] = useState(workspacePrefs.compactDensity);
   const [visibleColumns, setVisibleColumns] = useState<Record<ThreatTableColumn, boolean>>(workspacePrefs.table.columnVisibility);
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
@@ -91,6 +100,7 @@ export function LocalScreen({
   const [pinnedRowIds, setPinnedRowIds] = useState<Set<string>>(new Set());
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [rosterOpen, setRosterOpen] = useState(false);
+  const [visibleRowIds, setVisibleRowIds] = useState<string[]>([]);
   const pasteInputRef = useRef<HTMLTextAreaElement | null>(null);
   const scrollParentRef = useRef<HTMLDivElement>(null);
 
@@ -113,6 +123,8 @@ export function LocalScreen({
         ...workspacePrefs.table,
         sortBy,
         sortDirection,
+        filterText,
+        quickFilters,
         columnVisibility: visibleColumns,
         columnWidths,
       },
@@ -122,7 +134,7 @@ export function LocalScreen({
         splitPositions,
       },
     });
-  }, [columnWidths, compactMode, panelSizes, pastedText, sortBy, sortDirection, splitPositions, visibleColumns, workspacePrefs]);
+  }, [columnWidths, compactMode, filterText, panelSizes, pastedText, quickFilters, sortBy, sortDirection, splitPositions, visibleColumns, workspacePrefs]);
 
   useEffect(() => {
     if (!actionMessage) return;
@@ -138,13 +150,19 @@ export function LocalScreen({
     setSelectedRowId((prev) => (prev && baseRows.some((row) => row.id === prev) ? prev : baseRows[0]!.id));
   }, [baseRows]);
 
-  const rows = useMemo(() => baseRows.map((row) => {
-    if (!pinnedRowIds.has(row.id)) return row;
-    return {
-      ...row,
-      tags: row.tags.includes('Pinned') ? row.tags : [...row.tags, 'Pinned'],
-    };
-  }), [baseRows, pinnedRowIds]);
+  const rows = useMemo(() => baseRows
+    .filter((row) => {
+      if (quickFilters.nonLowOnly && row.threatBand === 'low') return false;
+      if (quickFilters.recentOnly && !isRecentActivity(row.lastSeen)) return false;
+      return true;
+    })
+    .map((row) => {
+      if (!pinnedRowIds.has(row.id)) return row;
+      return {
+        ...row,
+        tags: row.tags.includes('Pinned') ? row.tags : [...row.tags, 'Pinned'],
+      };
+    }), [baseRows, pinnedRowIds, quickFilters.nonLowOnly, quickFilters.recentOnly]);
 
   const selectedRow = useMemo(() => rows.find((row) => row.id === selectedRowId) ?? null, [rows, selectedRowId]);
 
@@ -176,7 +194,12 @@ export function LocalScreen({
   }, [onRefreshSelected, selectedRow]);
 
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Enter') {
+    if (event.key === 'Enter' && !isEditableTarget(event.target)) {
+      event.preventDefault();
+      refreshSelected();
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
       event.preventDefault();
       onAnalyze();
       return;
@@ -190,16 +213,22 @@ export function LocalScreen({
 
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
       event.preventDefault();
-      const currentIndex = rows.findIndex((row) => row.id === selectedRowId);
-      const nextIndex = nextSelectionIndex(currentIndex, rows.length, event.key);
-      setSelectedRowId(nextIndex >= 0 ? rows[nextIndex]!.id : null);
+      const currentIndex = visibleRowIds.findIndex((rowId) => rowId === selectedRowId);
+      const nextIndex = nextSelectionIndex(currentIndex, visibleRowIds.length, event.key);
+      setSelectedRowId(nextIndex >= 0 ? visibleRowIds[nextIndex] ?? null : null);
       return;
     }
 
+    if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'c') {
+      event.preventDefault();
+      void copyAllNames();
+      return;
+    }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
+      event.preventDefault();
       void copyName(selectedRow?.pilotName ?? null);
     }
-  }, [copyName, onAnalyze, rows, selectedRow?.pilotName, selectedRowId]);
+  }, [copyAllNames, copyName, onAnalyze, refreshSelected, selectedRow?.pilotName, selectedRowId, visibleRowIds]);
 
   if (!useLocalIntelV2Layout) return <div data-testid="local-screen-disabled">Local intel v2 layout is disabled.</div>;
 
@@ -227,6 +256,8 @@ export function LocalScreen({
         <main className="local-center-panel" data-testid="local-center-panel" hidden={!showDesktopGrid && activePane !== 'center'}>
           <div className="local-center-controls" data-testid="local-center-controls">
             <input data-testid="threat-filter" value={filterText} onChange={(e) => setFilterText(e.target.value)} placeholder="Filter pilot/corp/alliance/tags" />
+            <label><input type="checkbox" checked={quickFilters.nonLowOnly} onChange={(event) => setQuickFilters((curr) => ({ ...curr, nonLowOnly: event.target.checked }))} />Non-low</label>
+            <label><input type="checkbox" checked={quickFilters.recentOnly} onChange={(event) => setQuickFilters((curr) => ({ ...curr, recentOnly: event.target.checked }))} />Recent only</label>
             <button type="button" onClick={onAnalyze} disabled={analyzeState.status === 'loading'}>Analyze</button>
             <button type="button" onClick={refreshSelected}>Refresh Selected</button>
             <button type="button" onClick={() => void copyName(selectedRow?.pilotName ?? null)} disabled={!selectedRow}>Copy Selected</button>
@@ -270,6 +301,7 @@ export function LocalScreen({
             }}
             isPinned={(rowId) => pinnedRowIds.has(rowId)}
             scrollParentRef={scrollParentRef}
+            onVisibleRowIdsChange={setVisibleRowIds}
           />
         </main>
 

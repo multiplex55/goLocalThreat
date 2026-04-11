@@ -1,7 +1,7 @@
 import type { ThreatTableColumn } from './types';
 
 const WORKSPACE_PREFS_KEY = 'goLocalThreat.localWorkspacePrefs';
-const WORKSPACE_PREFS_VERSION = 1;
+const WORKSPACE_PREFS_VERSION = 2;
 
 export interface LocalWorkspacePrefs {
   version: number;
@@ -9,6 +9,11 @@ export interface LocalWorkspacePrefs {
   table: {
     sortBy: ThreatTableColumn;
     sortDirection: 'asc' | 'desc';
+    filterText: string;
+    quickFilters: {
+      nonLowOnly: boolean;
+      recentOnly: boolean;
+    };
     columnVisibility: Record<ThreatTableColumn, boolean>;
     columnWidths: Partial<Record<ThreatTableColumn, number>>;
   };
@@ -32,6 +37,11 @@ export const defaultWorkspacePrefs = (): LocalWorkspacePrefs => ({
   table: {
     sortBy: 'score',
     sortDirection: 'desc',
+    filterText: '',
+    quickFilters: {
+      nonLowOnly: false,
+      recentOnly: false,
+    },
     columnVisibility: {
       pilotName: true,
       corp: true,
@@ -62,7 +72,7 @@ export const defaultWorkspacePrefs = (): LocalWorkspacePrefs => ({
       horizontal: 50,
     },
   },
-  compactDensity: false,
+  compactDensity: true,
 });
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -110,6 +120,15 @@ function migrateWorkspacePrefs(raw: unknown): LocalWorkspacePrefs {
     table: {
       sortBy,
       sortDirection,
+      filterText: typeof table.filterText === 'string' ? table.filterText : defaults.table.filterText,
+      quickFilters: {
+        nonLowOnly: isRecord(table.quickFilters) && typeof table.quickFilters.nonLowOnly === 'boolean'
+          ? table.quickFilters.nonLowOnly
+          : defaults.table.quickFilters.nonLowOnly,
+        recentOnly: isRecord(table.quickFilters) && typeof table.quickFilters.recentOnly === 'boolean'
+          ? table.quickFilters.recentOnly
+          : defaults.table.quickFilters.recentOnly,
+      },
       columnVisibility,
       columnWidths,
     },

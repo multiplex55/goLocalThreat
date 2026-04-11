@@ -324,6 +324,63 @@ func TestAnalyzeFlowDetailInvalidTimestampWarningDoesNotBreakAnalysis(t *testing
 	}
 }
 
+func TestAnalyzeFlowRegressionParseStatsDetailMergeScoreNonCollapsed(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	esiProvider := mockESIProvider{
+		resolved: esi.ResolvedNames{Characters: map[string]int64{"Ace": 101, "Brick": 202}},
+		idents: []domain.CharacterIdentity{
+			{CharacterID: 101, Name: "Ace"},
+			{CharacterID: 202, Name: "Brick"},
+		},
+	}
+	zkProvider := mockZKillProvider{
+		summaries: map[int64]zkill.SummaryRow{
+			101: {CharacterID: 101, RecentKills: 12, RecentLosses: 2, DangerRatio: 0.86, LastActivity: now.Add(-15 * time.Minute)},
+			202: {CharacterID: 202, RecentKills: 2, RecentLosses: 7, DangerRatio: 0.22, LastActivity: now.Add(-5 * time.Hour)},
+		},
+		details: map[int64][]zkill.Killmail{
+			101: {
+				{KillID: 1, OccurredAt: now.Add(-12 * time.Minute)},
+				{KillID: 2, OccurredAt: now.Add(-22 * time.Minute)},
+			},
+			202: {
+				{KillID: 3, OccurredAt: now.Add(-3 * time.Hour)},
+				{KillID: 4, OccurredAt: now.Add(-4 * time.Hour)},
+			},
+		},
+	}
+
+	svc := app.NewAppServiceWithProviders(esiProvider, zkProvider)
+	session, err := svc.AnalyzePastedText("Ace\nBrick\nAce")
+	if err != nil {
+		t.Fatalf("AnalyzePastedText err: %v", err)
+	}
+	if len(session.Pilots) != 2 {
+		t.Fatalf("expected two merged pilots, got %d", len(session.Pilots))
+	}
+
+	nonLowBands := 0
+	nonZeroCombat := 0
+	for _, pilot := range session.Pilots {
+		if pilot.Threat.RecentKills > 0 || pilot.Threat.RecentLosses > 0 {
+			nonZeroCombat++
+		}
+		if pilot.Threat.ThreatBand != "low" {
+			nonLowBands++
+		}
+		if pilot.Threat.LastKill.IsZero() && pilot.Threat.LastLoss.IsZero() {
+			t.Fatalf("expected at least one activity timestamp for %s", pilot.Identity.Name)
+		}
+	}
+
+	if nonZeroCombat == 0 {
+		t.Fatalf("expected non-zero combat metrics from real fixture-like flow")
+	}
+	if nonLowBands == 0 {
+		t.Fatalf("expected score distribution to avoid uniform low baseline")
+	}
+}
+
 func TestAnalyzeFlowWarningClassificationAndSeverity(t *testing.T) {
 	esiProvider := mockESIProvider{
 		resolved: esi.ResolvedNames{Characters: map[string]int64{"Alice": 101}},
