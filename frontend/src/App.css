@@ -1,18 +1,20 @@
 .shell-root {
-  max-width: 1100px;
-  margin: 0 auto;
+  min-height: 100dvh;
   padding: 1rem;
   color: #e8f0ff;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 1rem;
 }
 
 .shell-header {
-  margin-bottom: 1rem;
+  margin: 0;
 }
 
 .shell-tabs {
   display: flex;
   gap: 0.5rem;
-  margin-bottom: 1rem;
+  margin: 0;
 }
 
 .shell-tabs button {
@@ -24,15 +26,82 @@
 }
 
 .shell-main {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 1rem;
+  min-height: 0;
 }
 
-.shell-panel,
-.shell-side {
+.local-screen {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100%;
+  min-height: min(100vh, 100dvh);
+  gap: 0.75rem;
+}
+
+.local-top-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.local-pane-tabs {
+  display: inline-flex;
+  gap: 0.35rem;
+  margin-left: 0.5rem;
+}
+
+.local-layout-grid {
+  display: grid;
+  grid-template-columns: 280px minmax(540px, 1fr) 360px;
+  min-height: 0;
+  overflow: hidden;
+  gap: 0.75rem;
+}
+
+.local-left-panel,
+.local-center-panel,
+.local-right-panel,
+.local-bottom-strip {
   border: 1px solid #2f3b50;
   border-radius: 8px;
   background: #101726;
-  padding: 1rem;
+  padding: 0.75rem;
+}
+
+.local-left-panel,
+.local-right-panel {
+  overflow: auto;
+}
+
+.local-center-panel {
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+  gap: 0.5rem;
+}
+
+.local-center-table-scroll {
+  min-height: 0;
+  overflow: auto;
+}
+
+.local-bottom-strip {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  padding-block: 0.4rem;
+}
+
+@media (max-width: 1439px) {
+  .local-layout-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .local-left-panel,
+  .local-center-panel,
+  .local-right-panel {
+    height: 100%;
+  }
 }
