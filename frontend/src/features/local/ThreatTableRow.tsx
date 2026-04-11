@@ -77,6 +77,17 @@ function dimmedText(value: string | null | undefined): string {
   return trimmed ? trimmed : PLACEHOLDER;
 }
 
+function isZeroTimestamp(value: string | null | undefined): boolean {
+  const trimmed = value?.trim();
+  if (!trimmed) return false;
+  return trimmed === '0001-01-01T00:00:00Z' || trimmed.startsWith('0001-01-01');
+}
+
+function dimmedTimestamp(value: string | null | undefined): string {
+  if (!value || isZeroTimestamp(value)) return PLACEHOLDER;
+  return dimmedText(value);
+}
+
 export function buildThreatTableRow(row: ThreatRowView, selected: boolean, compact: boolean): ThreatTableRowView {
   const name = dimmedText(row.pilotName);
   const corpTicker = row.corpTicker?.trim() ? `[${row.corpTicker}]` : '';
@@ -129,7 +140,7 @@ export function buildThreatTableRow(row: ThreatRowView, selected: boolean, compa
       overflowCount: overflow.length,
       overflowTooltip: overflow.length ? overflow.map((tag) => tag.label).join(', ') : null,
     },
-    cells: [name, corp, alliance, dimmedText(row.mainShip), dimmedText(row.lastSeen)],
+    cells: [name, corp, alliance, dimmedText(row.mainShip), dimmedTimestamp(row.lastSeen)],
     tags,
     virtualizationKey: `row-${row.id}`,
   };

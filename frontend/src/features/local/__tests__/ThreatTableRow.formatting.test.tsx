@@ -48,4 +48,15 @@ describe('ThreatTableRow formatting', () => {
     expect(row.numericCells.soloPercent).toBe('50.7%');
     expect(row.numericCells.avgGangSize).toBe('2.3');
   });
+
+  it('renders null timestamp values with placeholder dash', () => {
+    const row = buildThreatTableRow({ ...blankRow, lastSeen: null }, false, false);
+    expect(row.cells[4]).toBe('—');
+  });
+
+  it('never surfaces zero sentinel timestamps', () => {
+    const row = buildThreatTableRow({ ...blankRow, lastSeen: '0001-01-01T00:00:00Z' }, false, false);
+    expect(row.cells[4]).toBe('—');
+    expect(row.cells.join(' ')).not.toContain('0001-01-01');
+  });
 });
