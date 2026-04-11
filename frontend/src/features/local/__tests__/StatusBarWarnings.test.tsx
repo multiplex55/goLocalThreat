@@ -23,6 +23,11 @@ function buildState(): AnalyzeState {
         globalWarnings: [{ code: 'TRANSPORT_TIMEOUT', rawCode: 'TRANSPORT_TIMEOUT', message: 'socket timeout', normalizedLabel: 'Recent activity incomplete', severity: 'warn', provider: 'esi', userVisible: true, category: 'transport', displayTier: 'status_strip' }],
         warningsByPilotId: {},
         warningCodeCounts: {},
+        warningDisplay: {
+          global: [{ label: 'Recent activity incomplete', count: 3 }],
+          rowHints: {},
+          byPilot: {},
+        },
         severityCounts: { info: 0, warn: 1, error: 0 },
         providerCounts: {},
       },
@@ -52,10 +57,10 @@ function buildState(): AnalyzeState {
 }
 
 describe('StatusBarWarnings', () => {
-  it('shows global transport warnings in bottom strip', () => {
+  it('keeps global status concise and code-free for end users', () => {
     render(<LocalScreen pastedText="" analyzeState={buildState()} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
 
-    expect(screen.getByTestId('bottom-strip-warnings')).toHaveTextContent('warn:transport');
-    expect(screen.getByTestId('bottom-strip-warnings')).toHaveTextContent('Recent activity incomplete');
+    expect(screen.getByTestId('bottom-strip-warnings')).toHaveTextContent('Recent activity incomplete: 3');
+    expect(screen.getByTestId('bottom-strip-warnings')).not.toHaveTextContent('TRANSPORT_TIMEOUT');
   });
 });

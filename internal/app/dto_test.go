@@ -63,22 +63,44 @@ func TestToAnalysisSessionDTOAttachesPilotScopedWarnings(t *testing.T) {
 	if dto.Pilots[0].Warnings[0].CharacterID == nil || *dto.Pilots[0].Warnings[0].CharacterID != charID {
 		t.Fatalf("expected pilot warning characterId %d, got %#v", charID, dto.Pilots[0].Warnings[0].CharacterID)
 	}
+	if len(dto.WarningDisplay.RowHints) != 1 || dto.WarningDisplay.RowHints[0].CharacterID != charID {
+		t.Fatalf("expected row warning hint for pilot %d, got %#v", charID, dto.WarningDisplay.RowHints)
+	}
+}
+
+func TestWarningDisplayAggregatesRepeatedTimestampWarnings(t *testing.T) {
+	charID := int64(44)
+	display := buildWarningDisplay([]domain.ProviderWarning{
+		{Provider: "zkill", Code: "DETAIL_TIME_INVALID", Message: "Partial zKill timestamps", CharacterID: &charID},
+		{Provider: "zkill", Code: "DETAIL_TIME_INVALID", Message: "Partial zKill timestamps", CharacterID: &charID},
+		{Provider: "zkill", Code: "DETAIL_TIME_MISSING", Message: "Recent activity has partial timestamps", CharacterID: &charID},
+	})
+
+	if len(display.RowHints) != 1 || display.RowHints[0].Count != 3 {
+		t.Fatalf("expected collapsed pilot hint with count=3, got %#v", display.RowHints)
+	}
+	if len(display.ByPilot) != 1 || len(display.ByPilot[0].Items) != 2 {
+		t.Fatalf("expected grouped pilot warning details, got %#v", display.ByPilot)
+	}
+	if len(display.Global.Items) < 2 {
+		t.Fatalf("expected global aggregated warning items, got %#v", display.Global.Items)
+	}
 }
 
 func TestToPilotDTOExportsThreatScoreAndBandForLowConfidenceCases(t *testing.T) {
 	dto := toPilotDTO(domain.PilotThreatRecord{
 		Identity: domain.CharacterIdentity{CharacterID: 99, Name: "Risky Pilot"},
 		Threat: domain.ThreatBreakdown{
-			ThreatScore:    37.5,
-			ThreatBand:     "medium",
-			Confidence:     0.4,
-			RecentKills:    6,
-			RecentLosses:   2,
-			ThreatReasons:  []string{"recentness unknown", "activity 20"},
-			DangerPercent:  85,
-			SoloPercent:    50,
-			AvgGangSize:    1.8,
-			Notes:          "summary + detail killmails: 2; partial timestamps: 1/2 killmails",
+			ThreatScore:   37.5,
+			ThreatBand:    "medium",
+			Confidence:    0.4,
+			RecentKills:   6,
+			RecentLosses:  2,
+			ThreatReasons: []string{"recentness unknown", "activity 20"},
+			DangerPercent: 85,
+			SoloPercent:   50,
+			AvgGangSize:   1.8,
+			Notes:         "summary + detail killmails: 2; partial timestamps: 1/2 killmails",
 		},
 		LastUpdated: time.Now().UTC(),
 		Freshness:   domain.FetchFreshness{Source: "zkill", DataAsOf: time.Now().UTC()},

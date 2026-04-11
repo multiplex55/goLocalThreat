@@ -71,6 +71,7 @@ export function LocalScreen({
   const unresolvedNames = diagnostics?.unresolvedNames ?? [];
   const globalWarnings = diagnostics?.globalWarnings ?? [];
   const groupedGlobalWarnings = useMemo(() => groupWarningsBySeverityAndCategory(dedupeWarnings(globalWarnings)), [globalWarnings]);
+  const aggregateGlobalWarnings = diagnostics?.warningDisplay?.global ?? [];
   const partialKillmailTimestampCount = diagnostics?.warningCodeCounts?.DETAIL_TIME_INVALID ?? 0;
 
   const rightCollapsed = useMediaQuery('(max-width: 1439px)');
@@ -286,9 +287,11 @@ export function LocalScreen({
           </summary>
           <p data-testid="diagnostic-partial-timestamps-count">Partial timestamps: {partialKillmailTimestampCount}</p>
           <ul data-testid="bottom-strip-warnings">
-            {Object.entries(groupedGlobalWarnings).length ? Object.entries(groupedGlobalWarnings).map(([group, warningItems]) => (
-              <li key={group}>{group} · {warningItems.map((warning) => warning.normalizedLabel ?? warning.message).join(', ')}</li>
-            )) : <li>No transport warnings.</li>}
+            {aggregateGlobalWarnings.length
+              ? aggregateGlobalWarnings.map((item) => <li key={item.label}>{item.label}: {item.count}</li>)
+              : Object.entries(groupedGlobalWarnings).length
+                ? Object.entries(groupedGlobalWarnings).map(([group, warningItems]) => <li key={group}>{warningItems.length} × {warningItems[0]?.normalizedLabel ?? 'Warning'}</li>)
+                : <li>No transport warnings.</li>}
           </ul>
         </details>
         <span>Status: {analyzeState.status} · pilots: {rows.length} · unresolved: {unresolvedNames.length} · split {splitPositions.vertical}/{splitPositions.horizontal}</span>

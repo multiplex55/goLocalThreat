@@ -78,6 +78,11 @@ export interface AnalysisSessionView {
     warningCodeCounts: Record<string, number>;
     severityCounts: Record<'info' | 'warn' | 'error', number>;
     providerCounts: Record<string, number>;
+    warningDisplay?: {
+      global: Array<{ label: string; count: number }>;
+      rowHints: Record<string, { count: number; hasImpact: boolean }>;
+      byPilot: Record<string, Array<{ label: string; count: number; impactsRecency: boolean; impactsTimestamps: boolean }>>;
+    };
   };
   parseSummary: ParseSummaryView;
   pilots: PilotThreatView[];

@@ -57,16 +57,12 @@ function buildState(): AnalyzeState {
 }
 
 describe('PilotDetailPanel in LocalScreen', () => {
-  it('shows pilot-specific warnings in detail panel with normalized wording', () => {
+  it('shows grouped pilot warning explanations in detail panel', () => {
     render(<LocalScreen pastedText="" analyzeState={buildState()} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
 
     const detailPane = screen.getByTestId('detail-pane');
-    expect(within(detailPane).getByTestId('detail-data-quality')).toHaveTextContent('Partial timestamps');
-    expect(within(detailPane).getByTestId('detail-data-quality')).toHaveTextContent('Derived from summary only');
-
     const warnings = within(detailPane).getByTestId('detail-warnings');
-    expect(warnings).toHaveTextContent('warn:data_quality');
-    expect(warnings).toHaveTextContent('Partial timestamps');
+    expect(warnings).toHaveTextContent('Partial timestamps (2)');
     expect(warnings.textContent?.match(/Partial timestamps/g)?.length).toBe(1);
   });
 });

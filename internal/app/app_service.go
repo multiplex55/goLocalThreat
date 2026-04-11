@@ -165,6 +165,7 @@ func (a *AppService) AnalyzePastedText(text string) (AnalysisSessionDTO, error) 
 
 	pilots, enrichWarnings, freshness := a.enrichPilots(ctx, identities, false, 0, analysisID)
 	warnings = append(warnings, enrichWarnings...)
+	warnings = aggregateTimestampWarnings(warnings)
 	a.logProviderMessages(analysisID, enrichWarnings)
 	for k, v := range freshness.StageDurations {
 		stageDurations[k] = v
@@ -637,6 +638,42 @@ func minInt(a, b int) int {
 	return b
 }
 
+func aggregateTimestampWarnings(warnings []domain.ProviderWarning) []domain.ProviderWarning {
+	if len(warnings) == 0 {
+		return warnings
+	}
+	perPilotCounts := map[int64]int{}
+	globalCount := 0
+	for _, warning := range warnings {
+		if warning.Code != "DETAIL_TIME_INVALID" && warning.Code != "DETAIL_TIME_MISSING" {
+			continue
+		}
+		globalCount++
+		if warning.CharacterID != nil {
+			perPilotCounts[*warning.CharacterID]++
+		}
+	}
+	if globalCount == 0 {
+		return warnings
+	}
+	out := make([]domain.ProviderWarning, len(warnings))
+	for i, warning := range warnings {
+		clone := warning
+		if clone.Metadata == nil {
+			clone.Metadata = map[string]string{}
+		}
+		if clone.Code == "DETAIL_TIME_INVALID" || clone.Code == "DETAIL_TIME_MISSING" {
+			clone.Metadata["aggregateGlobalCount"] = fmt.Sprintf("%d", globalCount)
+			clone.Metadata["impact.timestamps"] = "true"
+			clone.Metadata["impact.recency"] = fmt.Sprintf("%t", clone.Code == "DETAIL_TIME_MISSING")
+			if clone.CharacterID != nil {
+				clone.Metadata["aggregatePilotCount"] = fmt.Sprintf("%d", perPilotCounts[*clone.CharacterID])
+			}
+		}
+		out[i] = clone
+	}
+	return out
+}
 func (a *AppService) RefreshSession(sessionID string) (AnalysisSessionDTO, error) {
 	a.mu.Lock()
 	s, ok := a.sessions[sessionID]
@@ -646,7 +683,7 @@ func (a *AppService) RefreshSession(sessionID string) (AnalysisSessionDTO, error
 	}
 	pilots, warnings, freshness := a.enrichPilots(context.Background(), s.Source.ParsedCharacters, true, 0, "")
 	s.Pilots = pilots
-	s.Warnings = append(s.Source.Warnings, warnings...)
+	s.Warnings = aggregateTimestampWarnings(append(s.Source.Warnings, warnings...))
 	s.WarningCount = len(s.Warnings)
 	s.ProviderWarningSummary = summarizeWarnings(s.Warnings)
 	s.Freshness = freshness.Freshness
@@ -679,7 +716,7 @@ func (a *AppService) RefreshPilot(sessionID string, characterID int64) (PilotThr
 	}
 	pilots, warnings, _ := a.enrichPilots(context.Background(), s.Source.ParsedCharacters, false, characterID, "")
 	s.Pilots = pilots
-	s.Warnings = append(s.Source.Warnings, warnings...)
+	s.Warnings = aggregateTimestampWarnings(append(s.Source.Warnings, warnings...))
 	s.WarningCount = len(s.Warnings)
 	s.ProviderWarningSummary = summarizeWarnings(s.Warnings)
 	s.UpdatedAt = time.Now().UTC()

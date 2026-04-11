@@ -184,6 +184,58 @@ export function toAnalysisSessionView(dto: AppService.AnalysisSessionDTO): Analy
     return acc;
   }, {});
 
+  const warningDisplayDto = (dto as AppService.AnalysisSessionDTO & {
+    warningDisplay?: {
+      global?: { items?: Array<{ label?: string; count?: number }> };
+      rowHints?: Array<{ characterId?: number; count?: number; hasImpact?: boolean }>;
+      byPilot?: Array<{ characterId?: number; items?: Array<{ label?: string; count?: number; impactsRecency?: boolean; impactsTimestamps?: boolean }> }>;
+    };
+  }).warningDisplay;
+
+  const rowHintCounts = new Map<number, { count: number; hasImpact: boolean }>();
+  warningDisplayDto?.rowHints?.forEach((hint) => {
+    if (typeof hint.characterId !== 'number') return;
+    rowHintCounts.set(hint.characterId, {
+      count: hint.count ?? 0,
+      hasImpact: hint.hasImpact ?? false,
+    });
+  });
+
+  rowHintCounts.forEach((_hint, characterId) => {
+    const key = String(characterId);
+    const existing = warningsByPilotId[key] ?? [];
+    const hasRowTier = existing.some((warning) => warning.displayTier === 'row_hint');
+    if (!hasRowTier) {
+      warningsByPilotId[key] = existing.concat({
+        code: 'ROW_HINT_WARNING',
+        rawCode: 'ROW_HINT_WARNING',
+        message: 'Pilot has warning details',
+        normalizedLabel: 'Pilot has warning details',
+        characterId,
+        severity: 'warn',
+        userVisible: true,
+        category: 'data_quality',
+        displayTier: 'row_hint',
+      });
+    }
+  });
+
+  const byPilotDisplay: AnalysisSessionView['diagnostics']['warningDisplay']['byPilot'] = {};
+  warningDisplayDto?.byPilot?.forEach((entry) => {
+    if (typeof entry.characterId !== 'number') return;
+    byPilotDisplay[String(entry.characterId)] = (entry.items ?? []).map((item) => ({
+      label: item.label ?? 'Warning',
+      count: item.count ?? 0,
+      impactsRecency: item.impactsRecency ?? false,
+      impactsTimestamps: item.impactsTimestamps ?? false,
+    }));
+  });
+
+  const globalDisplay = (warningDisplayDto?.global?.items ?? []).map((item) => ({
+    label: item.label ?? 'Warning',
+    count: item.count ?? 0,
+  }));
+
   return {
     sessionId: dto.sessionId,
     createdAt: dto.createdAt,
@@ -201,6 +253,11 @@ export function toAnalysisSessionView(dto: AppService.AnalysisSessionDTO): Analy
       warningCodeCounts,
       severityCounts,
       providerCounts,
+      warningDisplay: {
+        global: globalDisplay,
+        rowHints: Object.fromEntries(Array.from(rowHintCounts.entries()).map(([characterId, hint]) => [String(characterId), hint])),
+        byPilot: byPilotDisplay,
+      },
     },
     parseSummary: {
       candidateCount: candidateNamesCount,

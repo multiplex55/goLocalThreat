@@ -40,3 +40,24 @@ func TestWarningCodeMapsToUserFacingMessage(t *testing.T) {
 		t.Fatalf("unexpected mapped message for DETAIL_TIME_MISSING: %q", got)
 	}
 }
+
+func TestAggregateTimestampWarningsAddsCountsAndImpactFlags(t *testing.T) {
+	charID := int64(9001)
+	aggregated := aggregateTimestampWarnings([]domain.ProviderWarning{
+		{Provider: "zkill", Code: "DETAIL_TIME_INVALID", CharacterID: &charID},
+		{Provider: "zkill", Code: "DETAIL_TIME_MISSING", CharacterID: &charID},
+	})
+
+	if len(aggregated) != 2 {
+		t.Fatalf("expected two warnings, got %d", len(aggregated))
+	}
+	if aggregated[0].Metadata["aggregateGlobalCount"] != "2" {
+		t.Fatalf("expected aggregateGlobalCount metadata, got %#v", aggregated[0].Metadata)
+	}
+	if aggregated[0].Metadata["impact.timestamps"] != "true" {
+		t.Fatalf("expected impact.timestamps=true, got %#v", aggregated[0].Metadata)
+	}
+	if aggregated[1].Metadata["impact.recency"] != "true" {
+		t.Fatalf("expected recency impact on DETAIL_TIME_MISSING, got %#v", aggregated[1].Metadata)
+	}
+}

@@ -74,7 +74,7 @@ describe('api adapter', () => {
       lastKill: '2026-01-02T00:00:00Z',
       lastLoss: '2025-12-02T00:00:00Z',
       freshness: { source: 'zkill', dataAsOf: '2026-01-01T00:00:00Z', isStale: false },
-      warnings: [{ provider: 'zkill', code: 'PARTIAL', message: 'partial', characterId: 777, severity: 'info', userVisible: true, category: 'provider' }],
+      warnings: [{ provider: 'zkill', code: 'PARTIAL', rawCode: 'PARTIAL', message: 'partial', normalizedLabel: 'Recent activity incomplete', characterId: 777, characterName: undefined, severity: 'info', userVisible: true, category: 'provider', displayTier: 'row_hint' }],
     });
   });
 
