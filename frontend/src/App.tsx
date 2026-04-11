@@ -33,44 +33,34 @@ function App() {
       setAnalyzeState((prev) => reduceAnalyzeState(prev, { type: 'ERROR', ...mapped }));
     }
   };
-  const screen = (() => {
-    if (tab === 'history') {
-      return <HistoryFeature query={historyQuery} onQueryChange={setHistoryQuery} />;
-    }
-    if (tab === 'settings') {
-      return <SettingsFeature note={settingsNote} onNoteChange={setSettingsNote} />;
-    }
-
-    return (
-      <LocalScreen
-        pastedText={pastedText}
-        analyzeState={analyzeState}
-        onPasteChange={(text) => {
-          setPastedText(text);
-          const current = hydrateWorkspacePrefs();
-          dehydrateWorkspacePrefs({ ...current, lastPastedInput: text });
-        }}
-        onAnalyze={runAnalyze}
-        useLocalIntelV2Layout
-      />
-    );
-  })();
 
   return (
     <div id="app-shell" className="shell-root" data-testid="app-shell">
-      <header className="shell-header" data-testid="primary-header">
-        <h1>goLocalThreat</h1>
-        <p>Local intel overview and analysis workspace.</p>
+      <header className="workspace-bar" data-testid="workspace-bar">
+        <strong>goLocalThreat</strong>
+        <nav className="workspace-tabs" aria-label="Primary tabs" data-testid="primary-tabs">
+          <button type="button" aria-current={tab === 'local' ? 'page' : undefined} onClick={() => setTab('local')}>Local</button>
+          <button type="button" aria-current={tab === 'history' ? 'page' : undefined} onClick={() => setTab('history')}>History</button>
+          <button type="button" aria-current={tab === 'settings' ? 'page' : undefined} onClick={() => setTab('settings')}>Settings</button>
+        </nav>
       </header>
 
-      <nav className="shell-tabs" aria-label="Primary tabs" data-testid="primary-tabs">
-        <button type="button" aria-current={tab === 'local' ? 'page' : undefined} onClick={() => setTab('local')}>Local</button>
-        <button type="button" aria-current={tab === 'history' ? 'page' : undefined} onClick={() => setTab('history')}>History</button>
-        <button type="button" aria-current={tab === 'settings' ? 'page' : undefined} onClick={() => setTab('settings')}>Settings</button>
-      </nav>
-
       <main className="shell-main" data-testid="primary-content" aria-label="Primary content region">
-        {screen}
+        {tab === 'history' ? <HistoryFeature query={historyQuery} onQueryChange={setHistoryQuery} /> : null}
+        {tab === 'settings' ? <SettingsFeature note={settingsNote} onNoteChange={setSettingsNote} /> : null}
+        {tab === 'local' ? (
+          <LocalScreen
+            pastedText={pastedText}
+            analyzeState={analyzeState}
+            onPasteChange={(text) => {
+              setPastedText(text);
+              const current = hydrateWorkspacePrefs();
+              dehydrateWorkspacePrefs({ ...current, lastPastedInput: text });
+            }}
+            onAnalyze={runAnalyze}
+            useLocalIntelV2Layout
+          />
+        ) : null}
       </main>
     </div>
   );

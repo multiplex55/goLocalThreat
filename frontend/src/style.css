@@ -3,12 +3,11 @@ body,
 #root {
   margin: 0;
   width: 100%;
-  min-height: 100%;
   height: 100%;
+  min-height: 100%;
 }
 
 :root {
-  /* Local threat UI theme tokens (dark + cyan accent pass). */
   --color-bg-app: #07111d;
   --color-surface-elevated: #0f1b2c;
   --color-surface-panel: #132238;
@@ -28,6 +27,8 @@ body,
   --color-band-high: #d45555;
   --color-band-critical: #ee6c6c;
 }
+
+* { box-sizing: border-box; }
 
 body {
   background-color: var(--color-bg-app);
