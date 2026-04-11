@@ -12,6 +12,7 @@ const CATEGORY_TONES: Record<string, TagPillView['tone']> = {
   Cloaky: 'warning',
   Partial: 'info',
   'Summary-only': 'neutral',
+  'Detail-enriched': 'info',
 };
 
 function looksLikeLongProse(input: string): boolean {
@@ -26,6 +27,7 @@ export function normalizeTagLabel(input: string): string | null {
   const lower = trimmed.toLowerCase();
 
   if (lower.includes('summary')) return 'Summary-only';
+  if (lower.includes('detail-enriched') || lower.includes('detail enriched')) return 'Detail-enriched';
   if (lower.includes('partial') || lower.includes('fallback') || lower.includes('uncertain') || lower.includes('timestamp') || lower.includes('stale')) return 'Partial';
   if (lower.includes('cloak')) return 'Cloaky';
   if (lower.includes('cyno')) return 'Cyno';

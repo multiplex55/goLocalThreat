@@ -44,6 +44,10 @@ export interface ThreatRowView {
   lastSeen: string | null;
   status: 'ready' | 'provisional' | 'loading';
   dataCompletenessMarkers: string[];
+  detailRequested?: boolean;
+  detailFetched?: boolean;
+  detailPolicyReason?: string | null;
+  detailPolicySummary?: string | null;
   provenance?: ThreatRowProvenance;
   warnings?: Array<{
     code?: string;

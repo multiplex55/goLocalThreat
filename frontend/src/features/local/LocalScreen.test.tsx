@@ -8,11 +8,11 @@ function buildState(): AnalyzeState {
     status: 'success', errorKey: null, message: null,
     data: {
       sessionId: 's1', createdAt: '2026-01-01T00:00:00Z', pilotCount: 2, warningCount: 1, sourceTextLength: 10,
-      diagnostics: { candidateNamesCount: 2, resolvedCount: 1, unresolvedNames: ['Gamma'], invalidLines: 0, warnings: [], globalWarnings: [], warningsByPilotId: {}, severityCounts: { info: 0, warn: 0, error: 0 }, providerCounts: {}, warningCodeCounts: {} },
+      diagnostics: { candidateNamesCount: 2, resolvedCount: 1, unresolvedNames: ['Gamma'], invalidLines: 0, warnings: [], globalWarnings: [], warningsByPilotId: {}, severityCounts: { info: 0, warn: 0, error: 0 }, providerCounts: {}, warningCodeCounts: {}, detailCoverage: { detailRequested: 2, detailFetched: 1, policySummary: 'test policy' } },
       parseSummary: { candidateCount: 2, invalidLineCount: 0, duplicateRemovalCount: 0, warningCount: 1, warnings: [{ code: 'W_PARSE', message: 'Trimmed weird line', severity: 'warn', userVisible: true, category: 'parse' }] },
       pilots: [
-        { id: '10', identity: { characterId: 10, characterName: 'Alpha', corporationName: 'A Corp', corporationTicker: null, allianceName: 'A', allianceTicker: null, portraitUrl: null, metadata: { corporationId: 1, allianceId: 1 } }, score: 91, band: 'critical', confidence: 0.9, reasons: ['FC'], tags: ['FC'], notes: null, kills: 7, losses: 1, dangerPercent: 80, soloPercent: 50, avgGangSize: 3, mainShip: 'Sabre', lastKill: '2026-01-01T00:00:00Z', lastLoss: '2025-12-01T00:00:00Z', freshness: { source: 'zkill', dataAsOf: '2026-01-01T00:00:00Z', isStale: false }, warnings: [] },
-        { id: '11', identity: { characterId: 11, characterName: 'Beta', corporationName: 'B Corp', corporationTicker: null, allianceName: 'B', allianceTicker: null, portraitUrl: null, metadata: { corporationId: 2, allianceId: 2 } }, score: 52, band: 'medium', confidence: 0.55, reasons: ['Stale Data'], tags: ['Stale Data'], notes: null, kills: null, losses: null, dangerPercent: null, soloPercent: null, avgGangSize: null, mainShip: null, lastKill: null, lastLoss: null, freshness: { source: null, dataAsOf: null, isStale: null }, warnings: [] },
+        { id: '10', identity: { characterId: 10, characterName: 'Alpha', corporationName: 'A Corp', corporationTicker: null, allianceName: 'A', allianceTicker: null, portraitUrl: null, metadata: { corporationId: 1, allianceId: 1 } }, score: 91, band: 'critical', confidence: 0.9, reasons: ['FC'], tags: ['FC'], notes: null, kills: 7, losses: 1, dangerPercent: 80, soloPercent: 50, avgGangSize: 3, mainShip: 'Sabre', lastKill: '2026-01-01T00:00:00Z', lastLoss: '2025-12-01T00:00:00Z', freshness: { source: 'zkill', dataAsOf: '2026-01-01T00:00:00Z', isStale: false }, detailRequested: true, detailFetched: true, warnings: [] },
+        { id: '11', identity: { characterId: 11, characterName: 'Beta', corporationName: 'B Corp', corporationTicker: null, allianceName: 'B', allianceTicker: null, portraitUrl: null, metadata: { corporationId: 2, allianceId: 2 } }, score: 52, band: 'medium', confidence: 0.55, reasons: ['Stale Data'], tags: ['Stale Data'], notes: null, kills: null, losses: null, dangerPercent: null, soloPercent: null, avgGangSize: null, mainShip: null, lastKill: null, lastLoss: null, freshness: { source: null, dataAsOf: null, isStale: null }, detailRequested: true, detailFetched: false, warnings: [] },
       ],
     },
   };
@@ -56,5 +56,13 @@ describe('LocalScreen', () => {
     render(<LocalScreen pastedText="" analyzeState={buildState()} onPasteChange={() => {}} onAnalyze={() => {}} onRefreshSelected={onRefreshSelected} useLocalIntelV2Layout />);
     fireEvent.click(screen.getByRole('button', { name: 'Refresh Selected' }));
     expect(onRefreshSelected).toHaveBeenCalledWith('10');
+  });
+
+  it('uses backend detail coverage metadata when stats exist for all but detail is subset', () => {
+    const state = buildState();
+    state.data!.diagnostics.detailCoverage = { detailRequested: 2, detailFetched: 1, policySummary: 'top-N + bootstrap' };
+    state.data!.pilots[1]!.kills = 4; // stats present, but backend still reports summary-only detail coverage.
+    render(<LocalScreen pastedText="" analyzeState={state} onPasteChange={() => {}} onAnalyze={() => {}} useLocalIntelV2Layout />);
+    expect(screen.getByTestId('detail-status-chip')).toHaveTextContent('detail 1/2');
   });
 });

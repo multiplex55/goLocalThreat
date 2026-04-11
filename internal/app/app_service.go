@@ -197,6 +197,7 @@ func (a *AppService) AnalyzePastedText(text string) (AnalysisSessionDTO, error) 
 		WarningCount:           len(warnings),
 		UnresolvedNames:        unresolvedNames,
 		ProviderWarningSummary: summarizeWarnings(warnings),
+		DetailCoverage:         freshness.DetailCoverage,
 	}
 	stageDurations["total_ms"] = time.Since(start).Milliseconds()
 	if err := s.Validate(); err != nil {
@@ -214,6 +215,7 @@ func (a *AppService) AnalyzePastedText(text string) (AnalysisSessionDTO, error) 
 type enrichResult struct {
 	Freshness      domain.FetchFreshness
 	StageDurations map[string]int64
+	DetailCoverage domain.DetailCoverage
 }
 
 func (a *AppService) resolveIdentities(ctx context.Context, names []string) ([]domain.CharacterIdentity, []string, []domain.ProviderWarning) {
@@ -368,11 +370,15 @@ func (a *AppService) enrichPilots(ctx context.Context, identities []domain.Chara
 	a.logger.Info("analyze stage complete", "analysis_id", analysisID, "stage", "zkill_stats", "duration_ms", stageDurations["zkill_stats_ms"], "record_count", len(summaries), "warning_count", len(statWarnings))
 
 	detailsStart := time.Now()
-	targetIDs := SelectDetailFetchTargets(pilots, 3, selectedPilotID, explicitRefresh)
-	detailEvidence, detailWarnings := a.fetchDetails(ctx, pilots, targetIDs)
+	selectionPlan := SelectDetailFetchTargets(pilots, DefaultDetailTargetTopN, selectedPilotID, explicitRefresh)
+	detailEvidence, detailFetchedByID, detailWarnings := a.fetchDetails(ctx, pilots, selectionPlan.TargetIDs)
 	warnings = append(warnings, detailWarnings...)
 	for idx := range pilots {
 		charID := pilots[idx].Identity.CharacterID
+		pilots[idx].DetailPolicySummary = selectionPlan.PolicySummary
+		pilots[idx].DetailPolicyReason = selectionPlan.ReasonsByID[charID]
+		pilots[idx].DetailRequested = pilots[idx].DetailPolicyReason != ""
+		pilots[idx].DetailFetched = detailFetchedByID[charID]
 		summary := summaries[charID]
 		evidence := detailEvidence[charID]
 		mergedThreat, mergedFreshness, _ := mergePilotThreat(summary, evidence, a.settings.RefreshInterval, now)
@@ -384,7 +390,7 @@ func (a *AppService) enrichPilots(ctx context.Context, identities []domain.Chara
 		pilots[idx].Freshness = mergedFreshness
 	}
 	stageDurations["zkill_detail_ms"] = time.Since(detailsStart).Milliseconds()
-	a.logger.Info("analyze stage complete", "analysis_id", analysisID, "stage", "zkill_detail", "duration_ms", stageDurations["zkill_detail_ms"], "target_count", len(targetIDs), "warning_count", len(detailWarnings))
+	a.logger.Info("analyze stage complete", "analysis_id", analysisID, "stage", "zkill_detail", "duration_ms", stageDurations["zkill_detail_ms"], "target_count", len(selectionPlan.TargetIDs), "warning_count", len(detailWarnings))
 
 	freshness := domain.FetchFreshness{Source: "composite", DataAsOf: now, IsStale: false}
 	for _, p := range pilots {
@@ -398,7 +404,15 @@ func (a *AppService) enrichPilots(ctx context.Context, identities []domain.Chara
 			freshness.DataAsOf = p.Freshness.DataAsOf
 		}
 	}
-	return pilots, warnings, enrichResult{Freshness: freshness, StageDurations: stageDurations}
+	return pilots, warnings, enrichResult{
+		Freshness:      freshness,
+		StageDurations: stageDurations,
+		DetailCoverage: domain.DetailCoverage{
+			RequestedCount: selectionPlan.RequestedCount,
+			FetchedCount:   len(detailFetchedByID),
+			PolicySummary:  selectionPlan.PolicySummary,
+		},
+	}
 }
 
 func (a *AppService) fetchSummaryRows(ctx context.Context, identities []domain.CharacterIdentity) (map[int64]zkill.SummaryRow, []domain.ProviderWarning) {
@@ -434,9 +448,10 @@ func (a *AppService) fetchSummaryRows(ctx context.Context, identities []domain.C
 	return summaries, warnings
 }
 
-func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThreatRecord, targetIDs []int64) (map[int64]detailThreatEvidence, []domain.ProviderWarning) {
+func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThreatRecord, targetIDs []int64) (map[int64]detailThreatEvidence, map[int64]bool, []domain.ProviderWarning) {
 	warnings := make([]domain.ProviderWarning, 0)
 	evidenceByID := make(map[int64]detailThreatEvidence, len(targetIDs))
+	fetchedByID := make(map[int64]bool, len(targetIDs))
 	byID := make(map[int64]int, len(pilots))
 	for i, p := range pilots {
 		byID[p.Identity.CharacterID] = i
@@ -469,6 +484,7 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 				))
 				return
 			}
+			fetchedByID[id] = true
 			if len(kms) == 0 {
 				return
 			}
@@ -513,7 +529,7 @@ func (a *AppService) fetchDetails(ctx context.Context, pilots []domain.PilotThre
 		}()
 	}
 	wg.Wait()
-	return evidenceByID, warnings
+	return evidenceByID, fetchedByID, warnings
 }
 
 func isStale(dataAsOf time.Time, refreshIntervalMin int) bool {
@@ -744,6 +760,7 @@ func (a *AppService) RefreshSession(sessionID string) (AnalysisSessionDTO, error
 	s.WarningCount = len(s.Warnings)
 	s.ProviderWarningSummary = summarizeWarnings(s.Warnings)
 	s.Freshness = freshness.Freshness
+	s.DetailCoverage = freshness.DetailCoverage
 	for k, v := range freshness.StageDurations {
 		s.DurationMetrics[k] = v
 	}
@@ -776,6 +793,21 @@ func (a *AppService) RefreshPilot(sessionID string, characterID int64) (PilotThr
 	s.Warnings = aggregateTimestampWarnings(append(s.Source.Warnings, warnings...))
 	s.WarningCount = len(s.Warnings)
 	s.ProviderWarningSummary = summarizeWarnings(s.Warnings)
+	s.DetailCoverage = domain.DetailCoverage{
+		RequestedCount: 1,
+		FetchedCount:   0,
+		PolicySummary:  detailSelectionPolicySummary,
+	}
+	for _, p := range pilots {
+		if p.Identity.CharacterID == characterID && p.DetailRequested {
+			s.DetailCoverage.RequestedCount = 1
+			if p.DetailFetched {
+				s.DetailCoverage.FetchedCount = 1
+			}
+			s.DetailCoverage.PolicySummary = p.DetailPolicySummary
+			break
+		}
+	}
 	s.UpdatedAt = time.Now().UTC()
 	a.mu.Lock()
 	a.sessions[sessionID] = s

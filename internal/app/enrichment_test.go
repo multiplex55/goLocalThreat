@@ -18,7 +18,8 @@ func TestSelectDetailFetchTargetsPolicy(t *testing.T) {
 		{Identity: domain.CharacterIdentity{CharacterID: 4}, Threat: domain.ThreatBreakdown{Total: 1, RecentKills: 0, RecentLosses: 0}},
 	}
 
-	got := SelectDetailFetchTargets(pilots, 2, 3, false)
+	plan := SelectDetailFetchTargets(pilots, 2, 3, false)
+	got := plan.TargetIDs
 	want := []int64{1, 2, 3, 4}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("targets mismatch\nwant=%v\ngot=%v", want, got)
@@ -30,7 +31,7 @@ func TestSelectDetailFetchTargetsExplicitRefresh(t *testing.T) {
 		{Identity: domain.CharacterIdentity{CharacterID: 11}, Threat: domain.ThreatBreakdown{Total: 1}},
 		{Identity: domain.CharacterIdentity{CharacterID: 12}, Threat: domain.ThreatBreakdown{Total: 2}},
 	}
-	got := SelectDetailFetchTargets(pilots, 1, 0, true)
+	got := SelectDetailFetchTargets(pilots, 1, 0, true).TargetIDs
 	want := []int64{11, 12}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("explicit refresh should select all, got %v", got)
@@ -65,7 +66,7 @@ func TestFetchDetailsInvalidTimesStillPopulateNonTimeDerivations(t *testing.T) {
 		Threat:   domain.ThreatBreakdown{RecentKills: 4},
 	}}
 
-	detailEvidence, warnings := svc.fetchDetails(context.Background(), pilots, []int64{101})
+	detailEvidence, _, warnings := svc.fetchDetails(context.Background(), pilots, []int64{101})
 	merged, freshness, provenance := mergePilotThreat(zkill.SummaryRow{RecentKills: 4}, detailEvidence[101], svc.settings.RefreshInterval, now)
 	if merged.MainShip != "ShipType #111" {
 		t.Fatalf("expected main ship derived from detail rows, got %q", merged.MainShip)
@@ -113,7 +114,7 @@ func TestFetchDetailsNoValidTimesWarnsButKeepsNonTimeEnrichment(t *testing.T) {
 		Threat:   domain.ThreatBreakdown{RecentKills: 2},
 	}}
 
-	detailEvidence, warnings := svc.fetchDetails(context.Background(), pilots, []int64{303})
+	detailEvidence, _, warnings := svc.fetchDetails(context.Background(), pilots, []int64{303})
 	merged, _, _ := mergePilotThreat(zkill.SummaryRow{RecentKills: 2}, detailEvidence[303], svc.settings.RefreshInterval, time.Now().UTC())
 	if merged.MainShip != "ShipType #900" {
 		t.Fatalf("expected non-time enrichment to remain, got %q", merged.MainShip)

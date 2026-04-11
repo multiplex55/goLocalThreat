@@ -50,9 +50,10 @@ describe('ThreatTableRow tag rendering', () => {
       'Threat score combines combat activity over multiple windows and may be stale.',
       'Uncertain due to missing records from provider fallback.',
       'summary',
+      'detail enriched',
     ]);
 
-    expect(tags).toEqual(['FC', 'Summary-only']);
+    expect(tags).toEqual(['FC', 'Summary-only', 'Detail-enriched']);
     expect(normalizeTagLabel('paragraph: this should never be a pill')).toBeNull();
   });
 
